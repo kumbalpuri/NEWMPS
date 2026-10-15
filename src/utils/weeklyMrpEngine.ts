@@ -39,7 +39,8 @@ export function computeFGWeeklyCoverage(
   monthlyPlans: MonthlyPlanItem[],
   weeks: WeekDefinition[],
   mb51List: MB51TransactionItem[],
-  stockList: StockReportItem[]
+  stockList: StockReportItem[],
+  openingStockDate?: string
 ): FGWeeklyCoverageSummary[] {
   const monthWeeks = weeks
     .filter((w) => w.month === selectedMonth)
@@ -47,8 +48,12 @@ export function computeFGWeeklyCoverage(
 
   const monthPlans = monthlyPlans.filter((p) => p.month === selectedMonth);
 
+  // Derive effective opening date if not explicitly passed
+  const effectiveOpeningDate =
+    openingStockDate || stockList.find((s) => s.stockDate)?.stockDate;
+
   return monthPlans.map((plan) => {
-    // Find starting FG stock
+    // Find starting FG stock (opening stock as of openingStockDate)
     const stockItem = stockList.find((s) => s.partNumber === plan.fgCode);
     const startingStock = stockItem ? stockItem.unrestrictedStock : 0;
 
@@ -85,7 +90,24 @@ export function computeFGWeeklyCoverage(
       totalActualDisp += actualDisp;
 
       const variance = actualProd - planTarget;
-      rollingStock = rollingStock + actualProd - actualDisp;
+
+      // When openingStockDate is set:
+      // If the week ended before the opening stock date, it's historical before the inventory snapshot.
+      // For rolling closing stock from opening stock date:
+      if (effectiveOpeningDate && week.endDate < effectiveOpeningDate) {
+        // Historical week prior to opening stock snapshot
+      } else {
+        // Transactions that occurred on or after openingStockDate affect rolling stock
+        const receiptsFromDate = fgReceipts
+          .filter((tx) => !effectiveOpeningDate || tx.postingDate >= effectiveOpeningDate)
+          .reduce((sum, tx) => sum + tx.quantity, 0);
+
+        const dispatchesFromDate = fgDispatches
+          .filter((tx) => !effectiveOpeningDate || tx.postingDate >= effectiveOpeningDate)
+          .reduce((sum, tx) => sum + tx.quantity, 0);
+
+        rollingStock = rollingStock + receiptsFromDate - dispatchesFromDate;
+      }
 
       return {
         weekId: week.id,
@@ -96,7 +118,7 @@ export function computeFGWeeklyCoverage(
         actualProductionReceipt: actualProd,
         variance,
         actualDispatch: actualDisp,
-        closingStock: rollingStock
+        closingStock: Math.round(rollingStock)
       };
     });
 
@@ -127,13 +149,18 @@ export function computeRMWeeklyRequirements(
   boms: BOMItem[],
   vendorBuyers: VendorBuyerItem[],
   mb51List: MB51TransactionItem[],
-  stockList: StockReportItem[]
+  stockList: StockReportItem[],
+  openingStockDate?: string
 ): RMWeeklyRequirementSummary[] {
   const monthWeeks = weeks
     .filter((w) => w.month === selectedMonth)
     .sort((a, b) => a.weekNo - b.weekNo);
 
   const monthPlans = monthlyPlans.filter((p) => p.month === selectedMonth);
+
+  // Derive effective opening date if not explicitly passed
+  const effectiveOpeningDate =
+    openingStockDate || stockList.find((s) => s.stockDate)?.stockDate;
 
   // 1. Group BOM items by componentCode
   const componentMap = new Map<
@@ -189,7 +216,7 @@ export function computeRMWeeklyRequirements(
     const vendorCode = vbMapping ? vbMapping.vendorCode : 'V-NONE';
     const leadTimeDays = vbMapping ? vbMapping.leadTimeDays : 7;
 
-    // Lookup Stock Report
+    // Lookup Stock Report (Opening stock on openingStockDate)
     const stockItem = stockList.find((s) => s.partNumber === comp.componentCode);
     const currentStock = stockItem ? stockItem.unrestrictedStock : 0;
     const safetyStock = stockItem ? stockItem.safetyStock : 500;
@@ -226,8 +253,18 @@ export function computeRMWeeklyRequirements(
       const inwardQty = rmReceipts.reduce((sum, tx) => sum + tx.quantity, 0);
       totalInward += inwardQty;
 
-      // Projected Stock = Rolling Stock + Inward - Gross Requirement
-      rollingStock = rollingStock + inwardQty - grossReqForWeek;
+      // Rolling stock calculation from opening stock date:
+      // If week is strictly before openingStockDate, past consumption/receipts already occurred prior to snapshot.
+      if (effectiveOpeningDate && week.endDate < effectiveOpeningDate) {
+        // Historical week prior to opening stock snapshot
+      } else {
+        // Only inward receipts on or after openingStockDate count as new receipts
+        const inwardsFromDate = rmReceipts
+          .filter((tx) => !effectiveOpeningDate || tx.postingDate >= effectiveOpeningDate)
+          .reduce((sum, tx) => sum + tx.quantity, 0);
+
+        rollingStock = rollingStock + inwardsFromDate - grossReqForWeek;
+      }
 
       let status: 'OK' | 'WARNING' | 'SHORTAGE' = 'OK';
       let deficit = 0;

@@ -29,6 +29,7 @@ interface WeeklyFGSupplyViewProps {
   stockList: StockReportItem[];
   selectedMonth: string;
   onSelectMonth: (month: string) => void;
+  openingStockDate?: string;
 }
 
 export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
@@ -37,7 +38,8 @@ export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
   mb51List,
   stockList,
   selectedMonth,
-  onSelectMonth
+  onSelectMonth,
+  openingStockDate
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFG, setSelectedFG] = useState<string>('ALL');
@@ -51,7 +53,8 @@ export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
     monthlyPlans,
     weeks,
     mb51List,
-    stockList
+    stockList,
+    openingStockDate
   );
 
   const filteredSummaries = coverageSummaries.filter((s) => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText,
   Upload,
@@ -15,7 +15,9 @@ import {
   AlertCircle,
   Calendar,
   Layers,
-  Trash2
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { MB51TransactionItem, MB51Classification, WeekDefinition } from '../../types';
 import { getWeekForTransaction } from '../../utils/weeklyMrpEngine';
@@ -40,6 +42,10 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
+  // Checkbox selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [formData, setFormData] = useState<Partial<MB51TransactionItem>>({
@@ -97,6 +103,57 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
 
     return matchesSearch && matchesWeek && matchesTab;
   });
+
+  // Checkbox selection logic
+  const isAllSelected =
+    filteredList.length > 0 &&
+    filteredList.every((tx) => selectedIds.has(tx.id));
+  const isSomeSelected =
+    filteredList.some((tx) => selectedIds.has(tx.id)) && !isAllSelected;
+
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = isSomeSelected;
+    }
+  }, [isSomeSelected]);
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const next = new Set(selectedIds);
+      filteredList.forEach((tx) => next.delete(tx.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      filteredList.forEach((tx) => next.add(tx.id));
+      setSelectedIds(next);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${count} selected MB51 transaction record${
+          count > 1 ? 's' : ''
+        }?`
+      )
+    ) {
+      const remaining = mb51List.filter((tx) => !selectedIds.has(tx.id));
+      onUpdateMB51(remaining);
+      setSelectedIds(new Set());
+    }
+  };
 
   // KPI Calculations
   const fgProductionQty = mb51List
@@ -226,6 +283,11 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
   const handleDelete = (id: string) => {
     if (window.confirm('Delete this MB51 transaction record?')) {
       onUpdateMB51(mb51List.filter((tx) => tx.id !== id));
+      if (selectedIds.has(id)) {
+        const next = new Set(selectedIds);
+        next.delete(id);
+        setSelectedIds(next);
+      }
     }
   };
 
@@ -286,7 +348,7 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setIsUploadModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-blue-800 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-blue-800 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
           >
             <Upload className="w-4 h-4 text-blue-600" />
             Upload MB51 CSV / Excel
@@ -352,6 +414,38 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Bulk Delete / Selection Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-blue-50 border border-blue-300 p-3.5 rounded-xl text-sm shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2.5 text-blue-900 font-semibold">
+            <CheckCircle2 className="w-5 h-5 text-blue-600" />
+            <span>
+              {selectedIds.size} transaction record{selectedIds.size > 1 ? 's' : ''} selected
+            </span>
+            <span className="text-xs text-blue-700 font-normal">
+              (out of {filteredList.length} visible)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+            >
+              Deselect All
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteSelected}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Selected ({selectedIds.size})
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
@@ -428,12 +522,25 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
         </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table with Checkboxes */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wider font-semibold">
+                {/* Select All Checkbox */}
+                <th className="py-3.5 px-4 w-12 text-center">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      ref={selectAllCheckboxRef}
+                      checked={isAllSelected}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                      title={isAllSelected ? 'Deselect all visible records' : 'Select all visible records'}
+                    />
+                  </div>
+                </th>
                 <th className="py-3.5 px-4">Material Doc</th>
                 <th className="py-3.5 px-4">Posting Date</th>
                 <th className="py-3.5 px-4 text-center">Movement Type</th>
@@ -450,7 +557,7 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
             <tbody className="divide-y divide-slate-200">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400">
+                  <td colSpan={12} className="py-8 text-center text-slate-400">
                     No SAP MB51 material documents found.
                   </td>
                 </tr>
@@ -459,9 +566,27 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
                   const isFG101 = tx.classification === 'FG_PRODUCTION_RECEIPT';
                   const isRM101 = tx.classification === 'RMPM_RECEIPT';
                   const isDisp601 = tx.classification === 'FG_DISPATCH';
+                  const isSelected = selectedIds.has(tx.id);
 
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={tx.id}
+                      className={`transition-colors ${
+                        isSelected ? 'bg-blue-50/70 hover:bg-blue-50' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      {/* Row Checkbox */}
+                      <td className="py-3 px-4 w-12 text-center">
+                        <div className="flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(tx.id)}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            aria-label={`Select ${tx.materialDocument}`}
+                          />
+                        </div>
+                      </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-900 text-xs">
                         {tx.materialDocument}
                       </td>

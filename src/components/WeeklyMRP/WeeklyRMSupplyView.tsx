@@ -38,6 +38,7 @@ interface WeeklyRMSupplyViewProps {
   stockList: StockReportItem[];
   selectedMonth: string;
   onSelectMonth: (month: string) => void;
+  openingStockDate?: string;
 }
 
 export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
@@ -48,7 +49,8 @@ export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
   mb51List,
   stockList,
   selectedMonth,
-  onSelectMonth
+  onSelectMonth,
+  openingStockDate
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [buyerFilter, setBuyerFilter] = useState<string>('ALL');
@@ -67,7 +69,8 @@ export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
     boms,
     vendorBuyers,
     mb51List,
-    stockList
+    stockList,
+    openingStockDate
   );
 
   const uniqueBuyers = Array.from(new Set(summaries.map((s) => s.buyerName))).filter(Boolean);

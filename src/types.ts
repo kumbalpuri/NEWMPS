@@ -161,6 +161,7 @@ export interface StockReportItem {
   safetyStock: number;
   plant: string;
   lastUpdated?: string;
+  stockDate?: string; // Opening stock date (YYYY-MM-DD)
 }
 
 // ============================================================================
