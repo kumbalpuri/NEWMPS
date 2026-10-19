@@ -15,7 +15,8 @@ import {
   Layers,
   Calendar,
   CheckSquare,
-  Square
+  Square,
+  X
 } from 'lucide-react';
 import { StockReportItem } from '../../types';
 
@@ -72,11 +73,13 @@ export const StockReportManager: React.FC<StockReportManagerProps> = ({
   };
 
   const filteredStocks = stockList.filter((item) => {
+    const term = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      item.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.materialDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.storageLocation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.stockDate && item.stockDate.includes(searchTerm));
+      !term ||
+      item.partNumber.toLowerCase().includes(term) ||
+      item.materialDescription.toLowerCase().includes(term) ||
+      item.storageLocation.toLowerCase().includes(term) ||
+      (item.stockDate && item.stockDate.toLowerCase().includes(term));
 
     const matchesType = typeFilter === 'ALL' || item.materialType === typeFilter;
 
@@ -523,15 +526,36 @@ export const StockReportManager: React.FC<StockReportManagerProps> = ({
           </button>
         </div>
 
-        <div className="relative min-w-[260px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search part number, description, SLOC..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-          />
+        {/* Real-time Text-Based Search Input */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative min-w-[280px] w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by material code or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setSearchTerm('');
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all shadow-inner"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors"
+                title="Clear search (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {searchTerm.trim() && (
+            <span className="hidden sm:inline-flex shrink-0 items-center px-2.5 py-1 text-xs font-medium text-teal-800 bg-teal-50 border border-teal-200 rounded-lg">
+              {filteredStocks.length} matching
+            </span>
+          )}
         </div>
       </div>
 
@@ -570,8 +594,29 @@ export const StockReportManager: React.FC<StockReportManagerProps> = ({
             <tbody className="divide-y divide-slate-200">
               {filteredStocks.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400">
-                    No stock records match your search or filter.
+                  <td colSpan={12} className="py-12 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                      <Search className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="text-sm font-semibold text-slate-700">
+                        {searchTerm.trim()
+                          ? `No stock items match "${searchTerm.trim()}"`
+                          : 'No stock records match your filter.'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {searchTerm.trim()
+                          ? 'Try searching with a different material code or keyword.'
+                          : 'Change the type filter or add new stock items.'}
+                      </p>
+                      {searchTerm.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="mt-3 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors"
+                        >
+                          Clear search filter
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (

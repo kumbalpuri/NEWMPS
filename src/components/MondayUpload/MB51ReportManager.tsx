@@ -17,7 +17,8 @@ import {
   Layers,
   Trash2,
   CheckSquare,
-  Square
+  Square,
+  X
 } from 'lucide-react';
 import { MB51TransactionItem, MB51Classification, WeekDefinition } from '../../types';
 import { getWeekForTransaction } from '../../utils/weeklyMrpEngine';
@@ -81,16 +82,19 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
 
   // Filtered List
   const filteredList = mb51List.filter((tx) => {
+    const term = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      tx.materialDocument.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.partNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.materialDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tx.vendorOrCustomer || '').toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      tx.partNumber.toLowerCase().includes(term) ||
+      tx.materialDescription.toLowerCase().includes(term) ||
+      tx.materialDocument.toLowerCase().includes(term) ||
+      (tx.vendorOrCustomer || '').toLowerCase().includes(term);
 
-    const matchesWeek =
-      selectedWeekFilter === 'ALL' ||
-      tx.weekId === selectedWeekFilter ||
-      (tx.postingDate && tx.postingDate.startsWith(selectedMonth));
+    let matchesWeek = true;
+    if (selectedWeekFilter !== 'ALL') {
+      const mappedWeek = getWeekForTransaction(tx, weeks);
+      matchesWeek = tx.weekId === selectedWeekFilter || mappedWeek?.id === selectedWeekFilter;
+    }
 
     let matchesTab = true;
     if (selectedTab === '101_FG') {
@@ -510,15 +514,36 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
           </select>
         </div>
 
-        <div className="relative min-w-[240px] w-full md:w-auto">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search Doc No, Part, Partner..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        {/* Real-time Text-Based Search Input */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative min-w-[280px] w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by material code or description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setSearchTerm('');
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-inner"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors"
+                title="Clear search (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {searchTerm.trim() && (
+            <span className="hidden sm:inline-flex shrink-0 items-center px-2.5 py-1 text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 rounded-lg">
+              {filteredList.length} matching
+            </span>
+          )}
         </div>
       </div>
 
@@ -557,8 +582,29 @@ export const MB51ReportManager: React.FC<MB51ReportManagerProps> = ({
             <tbody className="divide-y divide-slate-200">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400">
-                    No SAP MB51 material documents found.
+                  <td colSpan={12} className="py-12 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                      <Search className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="text-sm font-semibold text-slate-700">
+                        {searchTerm.trim()
+                          ? `No transactions match "${searchTerm.trim()}"`
+                          : 'No SAP MB51 material documents found.'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {searchTerm.trim()
+                          ? 'Try searching by a different material code or keyword.'
+                          : 'Change the movement type tab or add new transactions.'}
+                      </p>
+                      {searchTerm.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="mt-3 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                        >
+                          Clear search filter
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
