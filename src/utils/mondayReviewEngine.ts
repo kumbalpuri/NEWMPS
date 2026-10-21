@@ -15,6 +15,7 @@ import {
   PreviousMonthPerformance
 } from '../types';
 import { isDateInWeek } from './weeklyMrpEngine';
+import { getLineItemMB52UploadDate, getEffectiveStockSnapshot } from './mb52LockEngine';
 
 /**
  * Monday Review & Seamless Production Execution Engine
@@ -38,7 +39,8 @@ export function computeMondayReviewCockpit(
   stockList: StockReportItem[],
   vendorDeliverySchedules: VendorDeliverySchedule[],
   mondayReviewActions: MondayReviewActionItem[],
-  planFreezeList: FGPlanFreezeItem[] = []
+  planFreezeList: FGPlanFreezeItem[] = [],
+  openingStockDate?: string
 ): {
   cockpitItems: FGWeekProductionCockpitItem[];
   selectedWeek: WeekDefinition;
@@ -225,6 +227,37 @@ export function computeMondayReviewCockpit(
 
     const currentWeekRemainingToBuild = Math.max(0, totalWeekGrossTarget - currentWeekActualProd);
 
+    // 6.3.1 Production Run-Rate & Asking Rate Computations (Takt & Velocity)
+    const priorElapsedWorkingDays = priorWeeks.reduce(
+      (sum, pw) => sum + (pw.workingDays || pw.daysCount || 6),
+      0
+    );
+    const priorActualSum = priorWeeksBreakdown.reduce((sum, item) => sum + item.actualProd, 0);
+    const totalMonthWorkingDays = monthWeeks.reduce(
+      (sum, w) => sum + (w.workingDays || w.daysCount || 6),
+      0
+    );
+    const currentWeekWorkingDays = selectedWeek.workingDays || selectedWeek.daysCount || 6;
+    const remainingMonthWorkingDays = Math.max(1, totalMonthWorkingDays - priorElapsedWorkingDays);
+    const totalCompletedActual = priorActualSum + currentWeekActualProd;
+    const remainingMonthlyTarget = Math.max(0, plan.monthlyTarget - totalCompletedActual);
+
+    // Current Rate (units/day based on actual Mvt 101 receipts):
+    const currentDailyRate = priorElapsedWorkingDays > 0
+      ? Math.round(priorActualSum / priorElapsedWorkingDays)
+      : (currentWeekActualProd > 0 ? Math.round(currentWeekActualProd) : 0);
+
+    // Asking Rate (units/day required to fulfill Gross Target in the current week):
+    const askingDailyRate = currentWeekWorkingDays > 0
+      ? Math.round(totalWeekGrossTarget / currentWeekWorkingDays)
+      : totalWeekGrossTarget;
+
+    // Monthly Asking Rate (units/day to complete remaining monthly target):
+    const monthlyAskingDailyRate = Math.round(remainingMonthlyTarget / remainingMonthWorkingDays);
+
+    // Rate Pace Gap (+ means asking rate exceeds current pace, shortfall to close):
+    const ratePaceGap = askingDailyRate - currentDailyRate;
+
     // 6.4 Explode BOM for this FG
     const fgBOMItems = boms.filter((b) => b.fgCode === plan.fgCode);
 
@@ -239,10 +272,20 @@ export function computeMondayReviewCockpit(
     let bottleneckDesc = '';
 
     const explodedBOM: ExplodedBOMComponentSummary[] = fgBOMItems.map((bom) => {
-      // Stock Report (MB52)
-      const stockItem = stockList.find((s) => s.partNumber === bom.componentCode);
-      const totalPhysicalStock = stockItem ? stockItem.unrestrictedStock : 0;
-      const safetyStock = stockItem ? stockItem.safetyStock : 500;
+      // Stock Report (MB52) - Resolve stock snapshot for this component and selectedWeek
+      const stockSnapshot = getEffectiveStockSnapshot(
+        bom.componentCode,
+        stockList,
+        selectedWeek,
+        openingStockDate
+      );
+
+      const totalPhysicalStock = stockSnapshot.totalPhysicalStock;
+      const safetyStock = stockSnapshot.safetyStock;
+      const effectiveStockDate = stockSnapshot.effectiveDate;
+      const stockItem = stockSnapshot.primaryItem;
+      const unrestrictedStock = stockSnapshot.unrestrictedStock;
+      const inQualityInsp = stockSnapshot.inQualityInsp;
 
       // Common Part & Shared Usages
       const sharedInFGs = componentUsageMap.get(bom.componentCode) || [];
@@ -389,7 +432,9 @@ export function computeMondayReviewCockpit(
           scheduledInward,
           projectedClosing: rollingCompStock,
           deficit,
-          status
+          status,
+          currentStock,
+          safetyStock
         };
       });
 
@@ -452,7 +497,11 @@ export function computeMondayReviewCockpit(
         nextWeekClosingStock,
         nextWeekDeficit,
         hasNextWeekRisk,
-        hasForwardRisk
+        hasForwardRisk,
+        unrestrictedStock,
+        inQualityInsp,
+        stockDate: effectiveStockDate,
+        uploadDate: stockItem?.uploadDate || effectiveStockDate
       };
     });
 
@@ -593,7 +642,11 @@ export function computeMondayReviewCockpit(
       bottleneckComponentDesc: bottleneckDesc,
       fgHealthStatus,
       hasActiveEscalations,
-      mondayReviewActions: matchingActions
+      mondayReviewActions: matchingActions,
+      currentDailyRate,
+      askingDailyRate,
+      monthlyAskingDailyRate,
+      ratePaceGap
     };
   });
 

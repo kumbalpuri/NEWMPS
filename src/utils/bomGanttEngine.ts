@@ -4,8 +4,11 @@ import {
   VendorDeliverySchedule,
   BOMGanttDaySimulation,
   BOMGanttTimelineResult,
-  BOMGanttDayDelivery
+  BOMGanttDayDelivery,
+  BOMGanttDayStatus,
+  StockReportItem
 } from '../types';
+import { normalizeToISODate } from './mb52LockEngine';
 
 /**
  * Generates an array of ISO dates (YYYY-MM-DD) between start and end date (inclusive)
@@ -71,9 +74,11 @@ export function simulateBOMComponentDailyTimeline(
   activeDeliverySchedules: VendorDeliverySchedule[],
   options?: {
     customInitialStock?: number;
+    effectiveStockDate?: string; // e.g. "2026-08-06"
     simulatedDeliveries?: VendorDeliverySchedule[];
     horizonDays?: number; // e.g. 7 or 14
     nonWorkingDays?: string[]; // e.g. ['Sun']
+    stockList?: StockReportItem[];
   }
 ): BOMGanttTimelineResult {
   const initialStock = options?.customInitialStock !== undefined
@@ -83,9 +88,14 @@ export function simulateBOMComponentDailyTimeline(
   const safetyStock = comp.safetyStock || 0;
   const bomQty = comp.bomQty || 1;
 
+  // Determine effective stock date (MB52 upload baseline date)
+  // E.g. "2026-08-06"
+  const rawStockDate = options?.effectiveStockDate || comp.stockDate || comp.uploadDate;
+  const effectiveStockDate = rawStockDate ? normalizeToISODate(rawStockDate) : undefined;
+
   // Determine date range for simulation
-  let startDate = week.startDate || '2026-09-08';
-  let endDate = week.endDate || '2026-09-14';
+  let startDate = week.startDate || '2026-08-01';
+  let endDate = week.endDate || '2026-08-07';
 
   if (options?.horizonDays && options.horizonDays > week.daysCount) {
     const s = new Date(startDate);
@@ -116,7 +126,8 @@ export function simulateBOMComponentDailyTimeline(
 
   const dailyCompReq = Math.round(dailyFgTarget * bomQty);
 
-  let rollingStock = initialStock;
+  let rollingStock = 0;
+  let hasStockTakenEffect = false;
   let firstStockoutDate: string | undefined = undefined;
   let stockoutDaysCount = 0;
   let totalPeriodRequirement = 0;
@@ -127,7 +138,26 @@ export function simulateBOMComponentDailyTimeline(
     const isWorking = !nonWorking.includes(weekday);
     const dayFgPlan = isWorking ? dailyFgTarget : 0;
     const dayReq = isWorking ? dailyCompReq : 0;
-    totalPeriodRequirement += dayReq;
+
+    // Check if an explicit MB52 stock snapshot was taken/uploaded on this date
+    let snapshotToday: number | undefined = undefined;
+    if (options?.stockList && options.stockList.length > 0) {
+      const recordsOnDate = options.stockList.filter(
+        (s) => s.partNumber === comp.componentCode &&
+               !s.isPreviousUpload &&
+               normalizeToISODate(s.stockDate || s.uploadDate || s.lastUpdated) === dateStr
+      );
+      if (recordsOnDate.length > 0) {
+        const u = recordsOnDate.reduce((sum, r) => sum + (Number(r.unrestrictedStock) || 0), 0);
+        const q = recordsOnDate.reduce((sum, r) => sum + (Number(r.inQualityInsp) || 0), 0);
+        snapshotToday = u + q;
+      }
+    }
+
+    // Check if this date is strictly before the MB52 upload baseline date
+    const isBeforeUpload = effectiveStockDate && snapshotToday === undefined ? dateStr < effectiveStockDate : false;
+    // Check if this date is an effective baseline date of an MB52 upload
+    const isEffectiveDate = snapshotToday !== undefined || (effectiveStockDate ? dateStr === effectiveStockDate : (idx === 0));
 
     // Inward arrivals on this specific date
     const arrivingDeliveries = schedulesToUse.filter((s) => s.expectedDeliveryDate === dateStr);
@@ -143,46 +173,79 @@ export function simulateBOMComponentDailyTimeline(
     }));
 
     const totalInwardToday = dayDeliveries.reduce((sum, d) => sum + d.qty, 0);
-    totalInwardScheduled += totalInwardToday;
 
-    const startingStock = rollingStock;
-    // Inward receipts arrive at start of shift/day
-    const stockAfterInward = startingStock + totalInwardToday;
-    const endingStock = stockAfterInward - dayReq;
-
-    rollingStock = endingStock;
-
-    const deficitToday = endingStock < 0 ? Math.abs(endingStock) : 0;
-    const isStockout = endingStock < 0;
-
-    if (isStockout) {
-      stockoutDaysCount++;
-      if (!firstStockoutDate) {
-        firstStockoutDate = dateStr;
-      }
-    }
-
-    // Determine Day Health Status
-    let status: 'SAFE' | 'WARNING' | 'CRITICAL_STOPPAGE' = 'SAFE';
-    if (isStockout) {
-      status = 'CRITICAL_STOPPAGE'; // RED
-    } else if (endingStock < safetyStock && safetyStock > 0) {
-      status = 'WARNING'; // AMBER
-    } else {
-      status = 'SAFE'; // GREEN
-    }
-
-    // Production capacity supported today
+    let startingStock = 0;
+    let stockAfterInward = 0;
+    let endingStock = 0;
+    let isFrozen = false;
+    let status: BOMGanttDayStatus = 'SAFE';
+    let isStockout = false;
+    let deficitToday = 0;
     let productionCapacityPct = 100;
     let supportedFgUnitsToday = dayFgPlan;
 
-    if (dayReq > 0) {
-      if (stockAfterInward <= 0) {
-        productionCapacityPct = 0;
-        supportedFgUnitsToday = 0;
-      } else if (stockAfterInward < dayReq) {
-        supportedFgUnitsToday = Math.floor(stockAfterInward / (bomQty || 1));
-        productionCapacityPct = Math.round((stockAfterInward / dayReq) * 100);
+    if (isBeforeUpload) {
+      // 1. DATES PRIOR TO MB52 UPLOAD:
+      // All previous calculations are FROZEN!
+      // Stock baseline before upload is locked/frozen (shows 0 / Frozen).
+      // Does NOT consume the newly uploaded stock which arrives on effectiveStockDate!
+      isFrozen = true;
+      startingStock = 0;
+      stockAfterInward = totalInwardToday;
+      endingStock = 0;
+      status = 'FROZEN';
+      isStockout = false;
+      deficitToday = 0;
+      productionCapacityPct = 0;
+      supportedFgUnitsToday = 0;
+    } else {
+      // 2. DATES FROM UPLOAD DATE ONWARD (ACTIVE PERIOD):
+      // On the effective upload date or when a new snapshot arrives, the calculation begins with the snapshot stock!
+      if (snapshotToday !== undefined) {
+        startingStock = snapshotToday;
+        hasStockTakenEffect = true;
+      } else if (isEffectiveDate && !hasStockTakenEffect) {
+        startingStock = initialStock;
+        hasStockTakenEffect = true;
+      } else {
+        startingStock = rollingStock;
+      }
+
+      totalPeriodRequirement += dayReq;
+      totalInwardScheduled += totalInwardToday;
+
+      stockAfterInward = startingStock + totalInwardToday;
+      endingStock = stockAfterInward - dayReq;
+      rollingStock = endingStock;
+
+      deficitToday = endingStock < 0 ? Math.abs(endingStock) : 0;
+      isStockout = endingStock < 0;
+
+      if (isStockout) {
+        stockoutDaysCount++;
+        if (!firstStockoutDate) {
+          firstStockoutDate = dateStr;
+        }
+      }
+
+      // Determine Day Health Status
+      if (isStockout) {
+        status = 'CRITICAL_STOPPAGE'; // RED
+      } else if (endingStock < safetyStock && safetyStock > 0) {
+        status = 'WARNING'; // AMBER
+      } else {
+        status = 'SAFE'; // GREEN
+      }
+
+      // Production capacity supported today
+      if (dayReq > 0) {
+        if (stockAfterInward <= 0) {
+          productionCapacityPct = 0;
+          supportedFgUnitsToday = 0;
+        } else if (stockAfterInward < dayReq) {
+          supportedFgUnitsToday = Math.floor(stockAfterInward / (bomQty || 1));
+          productionCapacityPct = Math.round((stockAfterInward / dayReq) * 100);
+        }
       }
     }
 
@@ -194,6 +257,7 @@ export function simulateBOMComponentDailyTimeline(
       isWorkingDay: isWorking,
       dailyFgPlan: dayFgPlan,
       dailyReq: dayReq,
+      openingStock: startingStock,
       startingStock,
       inwardDeliveries: dayDeliveries,
       totalInwardToday,
@@ -203,10 +267,13 @@ export function simulateBOMComponentDailyTimeline(
       isStockout,
       status,
       productionCapacityPct,
-      supportedFgUnitsToday
+      supportedFgUnitsToday,
+      isFrozen,
+      isEffectiveStockDate: isEffectiveDate
     };
   });
 
+  const activeDays = daySimulations.filter((d) => !d.isFrozen);
   const isFeasible = stockoutDaysCount === 0;
 
   // Arrival evaluation analysis
@@ -218,7 +285,7 @@ export function simulateBOMComponentDailyTimeline(
   if (schedulesToUse.length === 0) {
     if (initialStock >= totalPeriodRequirement) {
       arrivalStatus = 'ON_TIME_SAFE';
-      message = `Initial stock (${initialStock.toLocaleString()} ${comp.uom}) is sufficient for all ${totalDays} days. No delivery required.`;
+      message = `Opening stock (${initialStock.toLocaleString()} ${comp.uom}${effectiveStockDate ? ` effective ${effectiveStockDate}` : ''}) is sufficient for all active days. No delivery required.`;
     } else {
       arrivalStatus = 'NO_SCHEDULE';
       message = `🚨 CRITICAL: No vendor PO schedule exists! Stock runs out on ${formatGanttDate(firstStockoutDate || '').full}. Line halts for ${stockoutDaysCount} days.`;
@@ -256,10 +323,10 @@ export function simulateBOMComponentDailyTimeline(
     }
   }
 
-  // Critical Path Analysis
-  const minEndingStock = Math.min(...daySimulations.map((d) => d.endingStock));
-  const criticalStockoutDates = daySimulations.filter((d) => d.isStockout).map((d) => d.date);
-  const gatingDeliveryDates = daySimulations.filter((d) => d.totalInwardToday > 0).map((d) => d.date);
+  // Critical Path Analysis (evaluated across active non-frozen days)
+  const minEndingStock = activeDays.length > 0 ? Math.min(...activeDays.map((d) => d.endingStock)) : initialStock;
+  const criticalStockoutDates = activeDays.filter((d) => d.isStockout).map((d) => d.date);
+  const gatingDeliveryDates = activeDays.filter((d) => d.totalInwardToday > 0).map((d) => d.date);
 
   let slackDays = 0;
   let isCriticalPath = false;

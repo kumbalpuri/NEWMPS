@@ -72,6 +72,7 @@ import {
   USER_ROLES
 } from '../../types';
 import { computeMondayReviewCockpit } from '../../utils/mondayReviewEngine';
+import { isScheduleReadOnly, getLineItemMB52UploadDate } from '../../utils/mb52LockEngine';
 import { BOMGanttChart, MultiComponentMasterGantt } from './BOMGanttChart';
 import { HistoryDrawer, HistoryDrawerFilter } from './HistoryDrawer';
 import { SupplyRiskHeatmap } from './SupplyRiskHeatmap';
@@ -97,6 +98,7 @@ interface MondayReviewCockpitProps {
   onSelectRole?: (role: UserRole) => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  openingStockDate?: string;
 }
 
 export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
@@ -119,7 +121,8 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
   currentRole = 'supply_planner',
   onSelectRole,
   isSidebarCollapsed = true,
-  onToggleSidebar
+  onToggleSidebar,
+  openingStockDate
 }) => {
   // Role-Based Access Control (RBAC)
   const isSupplyPlanner = currentRole === 'supply_planner';
@@ -300,7 +303,8 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
     stockList,
     vendorDeliverySchedules,
     mondayReviewActions,
-    planFreezeList
+    planFreezeList,
+    openingStockDate
   );
 
   // Identify all "OK" Finished Goods (100% component availability, no deficits, max buildable covers gross target)
@@ -603,6 +607,12 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
       : `${currentRoleDef.label} (${currentRoleDef.shortLabel})`;
 
     if (existingSched) {
+      if (isScheduleReadOnly(existingSched, stockList)) {
+        alert(
+          `This delivery schedule is read-only: Expected delivery date (${existingSched.expectedDeliveryDate}) is prior to the MB52 upload date (${getLineItemMB52UploadDate(existingSched.componentCode, stockList)}). All data prior to the upload date is locked.`
+        );
+        return;
+      }
       setEditingScheduleId(existingSched.id);
       setDeliveryFormData({
         scheduleRefId: existingSched.id,
@@ -621,6 +631,10 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
         reasonForChange: 'Rescheduled arrival date & quantity commitment for weekly production plan.'
       });
     } else {
+      const minDate = getLineItemMB52UploadDate(comp.componentCode, stockList);
+      const targetDate = `${selectedMonth}-11`;
+      const defaultDate = targetDate >= minDate ? targetDate : minDate;
+
       setEditingScheduleId(null);
       setDeliveryFormData({
         scheduleRefId: `SCH-${Date.now().toString().slice(-6)}`,
@@ -629,7 +643,7 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
         vendorCode: comp.vendorCode,
         vendorName: comp.vendorName,
         buyerName: comp.buyerName,
-        expectedDeliveryDate: `${selectedMonth}-11`,
+        expectedDeliveryDate: defaultDate,
         weekId: selectedWeekId,
         promisedQty: Math.max(500, Math.abs(comp.stockDeficit) || 1000),
         carrierOrTracking: 'Direct Road Express',
@@ -649,6 +663,12 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
     const vendorBuyer = vendorBuyers.find((vb) => vb.suppliedComponents.includes(componentCode));
 
     if (schedule) {
+      if (isScheduleReadOnly(schedule, stockList)) {
+        alert(
+          `This delivery schedule is read-only: Expected delivery date (${schedule.expectedDeliveryDate}) is prior to the MB52 upload date (${getLineItemMB52UploadDate(schedule.componentCode, stockList)}). All data prior to the upload date is locked.`
+        );
+        return;
+      }
       setEditingScheduleId(schedule.id);
       setDeliveryFormData({
         scheduleRefId: schedule.id,
@@ -667,6 +687,10 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
         reasonForChange: 'Rescheduled arrival date & quantity commitment from Supply Risk Heatmap.'
       });
     } else {
+      const minDate = getLineItemMB52UploadDate(componentCode, stockList);
+      const targetDate = `${selectedMonth}-11`;
+      const defaultDate = targetDate >= minDate ? targetDate : minDate;
+
       setEditingScheduleId(null);
       setDeliveryFormData({
         scheduleRefId: `SCH-${Date.now().toString().slice(-6)}`,
@@ -675,7 +699,7 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
         vendorCode: vendorBuyer?.vendorCode || 'V-1001',
         vendorName: vendorBuyer?.vendorName || 'Vendor',
         buyerName: vendorBuyer?.buyerName || 'Rajesh Kumar (Buyer)',
-        expectedDeliveryDate: `${selectedMonth}-11`,
+        expectedDeliveryDate: defaultDate,
         weekId: selectedWeekId,
         promisedQty: 1000,
         carrierOrTracking: 'Direct Road Express',
@@ -744,9 +768,16 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
     }
   };
 
-  // Save Delivery Schedule & Log Reason (Seamless Editing for All Roles)
   const handleSaveDeliverySchedule = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const minAllowedDate = getLineItemMB52UploadDate(deliveryFormData.componentCode, stockList);
+    if (deliveryFormData.expectedDeliveryDate < minAllowedDate) {
+      alert(
+        `Invalid Delivery Date: Expected delivery date (${deliveryFormData.expectedDeliveryDate}) cannot be before the MB52 upload baseline date (${minAllowedDate}) for line item ${deliveryFormData.componentCode}. Buyer can only add schedules for future dates on or after the upload date.`
+      );
+      return;
+    }
 
     const changeReason = deliveryFormData.reasonForChange.trim() || 'Delivery commitment updated during Monday review.';
 
@@ -850,6 +881,13 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
     const existing = vendorDeliverySchedules.find((s) => s.id === scheduleId);
     if (!existing) return;
 
+    if (isScheduleReadOnly(existing, stockList)) {
+      alert(
+        `Cannot delete this delivery schedule: delivery date (${existing.expectedDeliveryDate}) is prior to the MB52 upload baseline date (${getLineItemMB52UploadDate(existing.componentCode, stockList)}). All data prior to the upload date is read-only.`
+      );
+      return;
+    }
+
     const reason = prompt('Please enter reason for deleting/cancelling this delivery schedule:', 'Vendor cancelled order / Line rescheduled');
     if (reason === null) return;
 
@@ -885,6 +923,10 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
       'Prior Backlog',
       'Current Week Plan',
       'Gross Target',
+      'Current Rate (units/day)',
+      'Asking Rate (units/day)',
+      'Monthly Asking Rate (units/day)',
+      'Rate Pace Gap',
       'Net Shortage Gap',
       'W3 Plan',
       'W4 Plan',
@@ -909,6 +951,10 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
         item.priorBacklog,
         item.currentWeekPlanTarget,
         item.totalWeekGrossTarget,
+        item.currentDailyRate,
+        item.askingDailyRate,
+        item.monthlyAskingDailyRate,
+        item.ratePaceGap,
         netGap,
         w3,
         w4,
@@ -1712,6 +1758,18 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                 <th className="py-2.5 px-2 text-right w-24 bg-slate-200/60 font-bold text-slate-900">
                   Gross Target
                 </th>
+                <th
+                  className="py-2.5 px-2 text-right w-24 bg-blue-50/70 font-semibold text-blue-950 border-x border-slate-200/60"
+                  title="Current Actual Run Rate based on Mvt 101 production receipts / elapsed working days"
+                >
+                  Current Rate
+                </th>
+                <th
+                  className="py-2.5 px-2 text-right w-24 bg-amber-50/70 font-semibold text-amber-950 border-r border-slate-200/60"
+                  title="Asking Rate required to fulfill Gross Target across operational working days"
+                >
+                  Asking Rate
+                </th>
                 <th className="py-2.5 px-2 text-right w-20">Net Gap</th>
                 <th className="py-2.5 px-2 text-center w-16">W3 Plan</th>
                 <th className="py-2.5 px-2 text-center w-16">W4 Plan</th>
@@ -1723,7 +1781,7 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
             <tbody className="divide-y divide-slate-200">
               {filteredCockpitItems.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="py-8 text-center text-slate-400">
+                  <td colSpan={17} className="py-8 text-center text-slate-400">
                     No Finished Goods matched the selected filters.
                   </td>
                 </tr>
@@ -1745,9 +1803,11 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                   const progressExact = ((totalCompletedActual / totalMonthlyPlan) * 100).toFixed(1);
                   const remainingMonthlyTarget = Math.max(0, totalMonthlyPlan - totalCompletedActual);
 
-                  // Future weeks
+                  // Future weeks and working days
                   const w3 = fg.allWeeksDetail.find((w) => w.weekNo === 3);
                   const w4 = fg.allWeeksDetail.find((w) => w.weekNo === 4);
+                  const priorWeeksList = cockpit.monthWeeks.filter((w) => w.weekNo < cockpit.selectedWeek.weekNo);
+                  const priorWorkingDays = priorWeeksList.reduce((sum, w) => sum + (w.workingDays || w.daysCount || 6), 0) || 6;
 
                   return (
                     <React.Fragment key={fg.fgCode}>
@@ -1831,6 +1891,19 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                 style={{ width: `${Math.min(100, Math.max(0, monthlyProgressPercent))}%` }}
                               />
                             </div>
+
+                            {/* Velocity Takt Summary */}
+                            <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 leading-none pt-0.5">
+                              <span title={`Current Run Rate: ${fg.currentDailyRate} units/day`}>
+                                Cur: <strong className="text-slate-700">{fg.currentDailyRate > 0 ? `${fg.currentDailyRate}/d` : '-'}</strong>
+                              </span>
+                              <span
+                                title={`Asking Run Rate: ${fg.askingDailyRate} units/day`}
+                                className={fg.ratePaceGap > 0 ? 'text-amber-800 font-semibold' : 'text-emerald-700 font-semibold'}
+                              >
+                                Ask: {fg.askingDailyRate}/d
+                              </span>
+                            </div>
                           </div>
                         </td>
 
@@ -1893,6 +1966,52 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                         {/* Total Gross Target (Week Plan + Prior Backlog) */}
                         <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900 bg-slate-100/60">
                           {fg.totalWeekGrossTarget.toLocaleString()}
+                        </td>
+
+                        {/* Current Rate (Actual Run Rate based on 101 receipts) */}
+                        <td className="py-2.5 px-2 text-right bg-blue-50/20 border-x border-slate-200/50">
+                          <div
+                            className="flex flex-col items-end cursor-help"
+                            title={`Current Run Rate for ${fg.fgCode}:\n• Produced to Date (101): ${totalCompletedActual.toLocaleString()} units\n• Operating Days Elapsed: ${priorWorkingDays} days\n• Daily Run Rate: ${fg.currentDailyRate.toLocaleString()} units/day\n• Weekly Pace: ${priorActualSum.toLocaleString()} units/wk`}
+                          >
+                            <div className="flex items-baseline gap-0.5">
+                              <span className="font-mono font-bold text-slate-900 text-xs">
+                                {fg.currentDailyRate > 0 ? fg.currentDailyRate.toLocaleString() : '-'}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-normal">/day</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 font-mono">
+                              {priorActualSum > 0 ? `${priorActualSum.toLocaleString()}/wk` : 'No output'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Asking Rate (Target Run Rate needed to achieve Gross Target) */}
+                        <td className="py-2.5 px-2 text-right bg-amber-50/20 border-r border-slate-200/50">
+                          <div
+                            className="flex flex-col items-end cursor-help"
+                            title={`Asking Rate for ${fg.fgCode}:\n• Week ${cockpit.selectedWeek.weekNo} Gross Target: ${fg.totalWeekGrossTarget.toLocaleString()} units\n• Week Operating Days: ${cockpit.selectedWeek.workingDays || cockpit.selectedWeek.daysCount || 6} days\n• Weekly Asking Rate: ${fg.askingDailyRate.toLocaleString()} units/day\n• Monthly Balance Target: ${remainingMonthlyTarget.toLocaleString()} units\n• Month Asking Rate: ${fg.monthlyAskingDailyRate.toLocaleString()} units/day\n• Pace Gap: ${fg.ratePaceGap > 0 ? `Shortfall of +${fg.ratePaceGap.toLocaleString()}/day vs current pace` : 'Current pace is on track'}`}
+                          >
+                            <div className="flex items-baseline gap-0.5">
+                              <span className="font-mono font-bold text-slate-900 text-xs">
+                                {fg.askingDailyRate.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-normal">/day</span>
+                            </div>
+                            {fg.currentDailyRate === 0 ? (
+                              <span className="text-[9px] px-1 py-0.2 rounded font-semibold bg-rose-100 text-rose-800">
+                                Line Idle
+                              </span>
+                            ) : fg.ratePaceGap > 0 ? (
+                              <span className="text-[9px] px-1 py-0.2 rounded font-semibold bg-amber-100 text-amber-800">
+                                ▲ +{fg.ratePaceGap.toLocaleString()}/d
+                              </span>
+                            ) : (
+                              <span className="text-[9px] px-1 py-0.2 rounded font-semibold bg-emerald-100 text-emerald-800">
+                                ✓ On Track
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Net Shortage Gap */}
@@ -2039,7 +2158,7 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
 
                         return (
                           <tr className="bg-slate-50/50">
-                            <td colSpan={15} className="p-3 pl-8 pr-4 bg-slate-50 border-b border-slate-200">
+                            <td colSpan={17} className="p-3 pl-8 pr-4 bg-slate-50 border-b border-slate-200">
                               <div className="bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
                                 {/* Subheader */}
                                 <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
@@ -2197,6 +2316,8 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                             week={cockpit.selectedWeek}
                                             components={visibleComponents}
                                             deliverySchedules={vendorDeliverySchedules}
+                                            stockList={stockList}
+                                            openingStockDate={openingStockDate}
                                             onUpdateSchedule={handleUpdateSingleDeliverySchedule}
                                           />
                                         </div>
@@ -2618,6 +2739,8 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                                   fgTotalGrossTarget={fg.totalWeekGrossTarget}
                                                                   week={cockpit.selectedWeek}
                                                                   deliverySchedules={vendorDeliverySchedules}
+                                                                  stockList={stockList}
+                                                                  openingStockDate={openingStockDate}
                                                                   onUpdateSchedule={handleUpdateSingleDeliverySchedule}
                                                                   onOpenDeliveryModal={(c, s) => handleOpenDeliveryModal(c, s)}
                                                                   onOpenDiscussModal={(c) => handleOpenDiscussModal(fg, c)}
@@ -2778,7 +2901,14 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                             <div className="bg-slate-50 rounded p-2.5 border border-slate-200 text-[11px] flex flex-wrap items-center justify-between gap-3 font-mono">
                                                               <div>
                                                                 <span className="text-slate-500">Quick Formula: </span>
-                                                                <span className="text-slate-700">MB52 ({comp.totalPhysicalStock.toLocaleString()})</span> -{' '}
+                                                                <span className="text-slate-700">
+                                                                  MB52 ({comp.totalPhysicalStock.toLocaleString()}
+                                                                  {comp.inQualityInsp && comp.inQualityInsp > 0 ? (
+                                                                    <span className="text-[10px] text-teal-700 font-sans font-normal ml-0.5" title="Unrestricted Stock + In-Quality Inspection">
+                                                                      [{comp.unrestrictedStock?.toLocaleString() || (comp.totalPhysicalStock - comp.inQualityInsp).toLocaleString()} + {comp.inQualityInsp.toLocaleString()} QI]
+                                                                    </span>
+                                                                  ) : null})
+                                                                </span> -{' '}
                                                                 <span className="text-slate-700">Reserved ({comp.reservedStock.toLocaleString()})</span> +{' '}
                                                                 <span className="text-emerald-700 font-semibold">Deliveries (+{comp.totalScheduledInward.toLocaleString()})</span> -{' '}
                                                                 <span className="text-slate-800">Gross Req ({comp.totalRequiredForWeekWithBacklog.toLocaleString()})</span> ={' '}
@@ -3109,9 +3239,15 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-600 font-medium mb-1">Expected Arrival Date</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-600 font-medium">Expected Arrival Date</label>
+                    <span className="text-[10px] text-amber-700 font-medium flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> ≥ {getLineItemMB52UploadDate(deliveryFormData.componentCode, stockList)}
+                    </span>
+                  </div>
                   <input
                     type="date"
+                    min={getLineItemMB52UploadDate(deliveryFormData.componentCode, stockList)}
                     value={deliveryFormData.expectedDeliveryDate}
                     onChange={(e) =>
                       setDeliveryFormData({ ...deliveryFormData, expectedDeliveryDate: e.target.value })
@@ -3119,6 +3255,9 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                     className="w-full border border-slate-300 rounded px-2.5 py-1.5 font-mono text-slate-900 font-semibold bg-white focus:ring-1 focus:ring-slate-400"
                     required
                   />
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Buyer can add schedules for dates on or after MB52 upload date only.
+                  </p>
                 </div>
               </div>
 

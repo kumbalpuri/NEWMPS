@@ -145,6 +145,7 @@ export interface MB51TransactionItem {
   poOrOrderNumber?: string;
   classification: MB51Classification; // Automatically computed from mvt + part prefix
   weekId?: string; // Mapped week from postingDate
+  isReadOnly?: boolean; // Set to true if postingDate is before MB52 upload baseline
 }
 
 // 3.2 Stock Report (SAP MB52 / Unrestricted On-Hand Stock)
@@ -162,6 +163,9 @@ export interface StockReportItem {
   plant: string;
   lastUpdated?: string;
   stockDate?: string; // Opening stock date (YYYY-MM-DD)
+  uploadDate?: string; // Date MB52 upload was performed (YYYY-MM-DD)
+  isReadOnly?: boolean; // Set to true if superseded or locked prior to upload
+  isPreviousUpload?: boolean; // True if this record was zeroed by a subsequent upload
 }
 
 // ============================================================================
@@ -246,6 +250,7 @@ export interface VendorDeliverySchedule {
   carrierOrTracking?: string;
   deliveryStatus: DeliveryCommitmentStatus;
   notes?: string;
+  isReadOnly?: boolean; // Set to true if delivery date is prior to MB52 upload baseline
 }
 
 // 5.1.1 Vendor Delivery Schedule Change Audit Log
@@ -339,6 +344,8 @@ export interface ExplodedBOMWeekDetail {
   projectedClosing: number;
   deficit: number;
   status: 'ADEQUATE' | 'INADEQUATE' | 'CRITICAL_NO_DELIVERY' | 'EXCESS';
+  currentStock: number;
+  safetyStock: number;
 }
 
 // 5.3 Exploded BOM Component Details in FG Dropdown
@@ -351,6 +358,8 @@ export interface ExplodedBOMComponentSummary {
   bomQty: number; // Usage multiplier per 1 unit of FG
   currentStock: number; // On-hand unrestricted from MB52
   safetyStock: number;
+  unrestrictedStock?: number;
+  inQualityInsp?: number;
   
   // Common shared parts & stock reservation
   isCommonPart: boolean;
@@ -386,6 +395,10 @@ export interface ExplodedBOMComponentSummary {
   nextWeekDeficit?: number;
   hasNextWeekRisk?: boolean;
   hasForwardRisk?: boolean;
+
+  // Opening Stock Effective Date
+  stockDate?: string; // Effective opening stock date (YYYY-MM-DD) from MB52
+  uploadDate?: string; // Upload date in MB52
 }
 
 // 5.3.1 Previous Month Performance & Weekwise Breakdown for FG
@@ -464,12 +477,18 @@ export interface FGWeekProductionCockpitItem {
   fgHealthStatus: 'CRITICAL_SHORTAGE' | 'INADEQUATE_SCHEDULE' | 'SCHEDULE_ON_TRACK' | 'CLEAR_SEAMLESS';
   hasActiveEscalations: boolean;
   mondayReviewActions: MondayReviewActionItem[];
+
+  // Production Run-Rate & Velocity Metrics
+  currentDailyRate: number; // Actual units/day achieved in prior period
+  askingDailyRate: number; // Required units/day to achieve current week gross target
+  monthlyAskingDailyRate: number; // Required units/day to complete remaining monthly target
+  ratePaceGap: number; // weekly askingDailyRate - currentDailyRate (positive means shortfall)
 }
 
 // ============================================================================
 // 6. BOM COMPONENT DAILY PRODUCTION & ARRIVAL GANTT SIMULATION
 // ============================================================================
-export type BOMGanttDayStatus = 'SAFE' | 'WARNING' | 'CRITICAL_STOPPAGE';
+export type BOMGanttDayStatus = 'SAFE' | 'WARNING' | 'CRITICAL_STOPPAGE' | 'FROZEN';
 
 export interface BOMGanttDayDelivery {
   scheduleId?: string;
@@ -490,7 +509,8 @@ export interface BOMGanttDaySimulation {
   isWorkingDay: boolean;
   dailyFgPlan: number;
   dailyReq: number;
-  startingStock: number;
+  openingStock: number; // Opening stock available at start of day (e.g. from MB52 upload)
+  startingStock: number; // Starting stock before inward
   inwardDeliveries: BOMGanttDayDelivery[];
   totalInwardToday: number;
   stockAfterInward: number;
@@ -500,6 +520,8 @@ export interface BOMGanttDaySimulation {
   status: BOMGanttDayStatus;
   productionCapacityPct: number; // 0 to 100%
   supportedFgUnitsToday: number;
+  isFrozen?: boolean; // Whether calculation on this date is frozen (prior to MB52 upload baseline)
+  isEffectiveStockDate?: boolean; // True if this date is the effective date of the MB52 upload
 }
 
 export interface BOMGanttCriticalPathInfo {

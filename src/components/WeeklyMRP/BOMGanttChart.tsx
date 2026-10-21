@@ -24,16 +24,19 @@ import {
   Flame,
   GitCommit,
   ArrowRightCircle,
-  Filter
+  Filter,
+  Lock
 } from 'lucide-react';
 import {
   ExplodedBOMComponentSummary,
   WeekDefinition,
   VendorDeliverySchedule,
   BOMGanttTimelineResult,
-  BOMGanttDaySimulation
+  BOMGanttDaySimulation,
+  StockReportItem
 } from '../../types';
 import { simulateBOMComponentDailyTimeline, formatGanttDate } from '../../utils/bomGanttEngine';
+import { getLineItemMB52UploadDate, normalizeToISODate } from '../../utils/mb52LockEngine';
 
 interface BOMGanttChartProps {
   component: ExplodedBOMComponentSummary;
@@ -42,6 +45,8 @@ interface BOMGanttChartProps {
   fgTotalGrossTarget: number;
   week: WeekDefinition;
   deliverySchedules: VendorDeliverySchedule[];
+  stockList?: StockReportItem[];
+  openingStockDate?: string;
   onUpdateSchedule?: (updatedSchedule: VendorDeliverySchedule) => void;
   onOpenDeliveryModal?: (comp: ExplodedBOMComponentSummary, existingSched?: VendorDeliverySchedule) => void;
   onOpenDiscussModal?: (comp: ExplodedBOMComponentSummary) => void;
@@ -56,6 +61,8 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
   fgTotalGrossTarget,
   week,
   deliverySchedules,
+  stockList,
+  openingStockDate,
   onUpdateSchedule,
   onOpenDeliveryModal,
   onOpenDiscussModal,
@@ -69,6 +76,16 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
   // Visual toggle for Critical Path highlighting
   const [highlightCriticalPath, setHighlightCriticalPath] = useState<boolean>(defaultHighlightCriticalPath);
+
+  // Determine effective stock date (MB52 upload baseline date)
+  const effectiveStockDate = useMemo(() => {
+    if (component.stockDate) return normalizeToISODate(component.stockDate);
+    if (component.uploadDate) return normalizeToISODate(component.uploadDate);
+    if (stockList && stockList.length > 0) {
+      return getLineItemMB52UploadDate(component.componentCode, stockList, openingStockDate, week);
+    }
+    return normalizeToISODate(openingStockDate) || week.startDate;
+  }, [component, stockList, openingStockDate, week]);
 
   // Interactive Simulation State (What-If Analysis)
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
@@ -105,7 +122,7 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
     return [...otherSchedules, simulatedSchedule];
   }, [isSimulating, deliverySchedules, component, primarySched, simulatedDate, simulatedQty, week.id]);
 
-  // Run calculation engine
+  // Run calculation engine with effectiveStockDate and stockList
   const timelineResult: BOMGanttTimelineResult = useMemo(() => {
     return simulateBOMComponentDailyTimeline(
       component,
@@ -115,18 +132,21 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
       week,
       effectiveDeliveries,
       {
-        horizonDays
+        horizonDays,
+        effectiveStockDate,
+        stockList
       }
     );
-  }, [component, fgCode, fgDescription, fgTotalGrossTarget, week, effectiveDeliveries, horizonDays]);
+  }, [component, fgCode, fgDescription, fgTotalGrossTarget, week, effectiveDeliveries, horizonDays, effectiveStockDate, stockList]);
 
   const { days, isFeasible, firstStockoutDate, criticalPath } = timelineResult;
   const isCriticalPathComp = criticalPath?.isCriticalPath ?? !isFeasible;
 
-  // Calculate coverage percentage
+  // Calculate coverage percentage (guard against undefined / NaN)
   const totalRequired = fgTotalGrossTarget * component.bomQty;
+  const expectedDeliveries = component.totalScheduledInward ?? component.expectedDeliveriesTotal ?? 0;
   const coveragePercent = totalRequired > 0
-    ? Math.min(100, Math.round(((component.currentStock + component.expectedDeliveriesTotal) / totalRequired) * 100))
+    ? Math.min(100, Math.round(((component.currentStock + expectedDeliveries) / totalRequired) * 100))
     : 100;
 
   const handleDateClick = (dateStr: string) => {
@@ -147,7 +167,10 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
   };
 
   const selectedDaySimulation = useMemo(() => {
-    if (!selectedDate) return days[0] || null;
+    if (!selectedDate) {
+      const effectiveDay = days.find((d) => d.isEffectiveStockDate) || days.find((d) => !d.isFrozen) || days[0];
+      return effectiveDay || null;
+    }
     return days.find((d) => d.date === selectedDate) || days[0] || null;
   }, [days, selectedDate]);
 
@@ -343,10 +366,12 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                       isSelected ? 'bg-indigo-50/60' : ''
                     }`}
                   >
-                    {/* Compact Horizontal Bar Pill (Green or Red) */}
+                    {/* Compact Horizontal Bar Pill (Green, Red, or Frozen) */}
                     <div
                       className={`w-full h-7 rounded-xs flex items-center justify-center px-1 text-[10px] font-bold transition-all shadow-2xs relative ${
-                        isCritical
+                        day.isFrozen
+                          ? 'bg-slate-700/80 hover:bg-slate-700 text-slate-300 border border-slate-600'
+                          : isCritical
                           ? 'bg-rose-600 hover:bg-rose-700 text-white'
                           : isWarning
                           ? 'bg-amber-500 hover:bg-amber-600 text-white'
@@ -363,14 +388,21 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                           : ''
                       }`}
                       title={`${day.dayLabel}: ${
-                        isCritical
+                        day.isFrozen
+                          ? `Historical Pre-Upload: Calculation frozen prior to MB52 upload baseline (${effectiveStockDate || 'baseline'})`
+                          : isCritical
                           ? `Critical Path Bottleneck: -${day.deficitToday} ${component.uom} deficit (Delays FG Delivery)`
                           : hasInward
                           ? `Vendor Delivery: +${day.totalInwardToday.toLocaleString()} ${component.uom} (${isCriticalDelivery ? 'Gating Task on Critical Path' : 'Safe Inward'})`
                           : `Projected Stock: ${day.endingStock} ${component.uom}`
                       } (Click to open timeline track)`}
                     >
-                      {hasInward ? (
+                      {day.isFrozen ? (
+                        <div className="flex items-center gap-0.5 text-[8px] text-slate-300">
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                          <span>FROZEN</span>
+                        </div>
+                      ) : hasInward ? (
                         <div className="flex items-center gap-0.5 truncate text-[9px]">
                           {isCriticalDelivery && (
                             <Zap className="w-2.5 h-2.5 text-amber-300 fill-current shrink-0" />
@@ -384,7 +416,9 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                           <span className="text-[9px] uppercase font-black tracking-tight">STOP</span>
                         </div>
                       ) : day.isWorkingDay ? (
-                        <span className="text-[9px] font-semibold opacity-95">OK</span>
+                        <span className="text-[9px] font-semibold opacity-95">
+                          {day.isEffectiveStockDate ? 'OK ★' : 'OK'}
+                        </span>
                       ) : (
                         <span className="text-[8px] opacity-75">OFF</span>
                       )}
@@ -556,36 +590,69 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
           {/* Selected Date Metric Cards */}
           {selectedDaySimulation && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
-              <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                <span className="text-slate-400 block text-[9px]">1. Opening Inventory:</span>
-                <span className="text-xs font-bold text-white">
-                  {selectedDaySimulation.startingStock.toLocaleString()} {component.uom}
-                </span>
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
+                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
+                  <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                    <span>1. Opening Inventory:</span>
+                    {selectedDaySimulation.isEffectiveStockDate && (
+                      <span className="px-1 py-0.2 rounded bg-teal-900 text-teal-300 text-[8px] font-bold">MB52 Baseline</span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-white'}`}>
+                      {selectedDaySimulation.isFrozen
+                        ? 'Frozen'
+                        : `${selectedDaySimulation.openingStock.toLocaleString()} ${component.uom}`}
+                    </span>
+                    {!selectedDaySimulation.isFrozen && component.inQualityInsp && component.inQualityInsp > 0 && (
+                      <span className="text-[9px] text-teal-400 font-sans font-normal" title="Unrestricted Stock + In-Quality Inspection">
+                        ({component.unrestrictedStock?.toLocaleString() || (component.totalPhysicalStock - component.inQualityInsp).toLocaleString()} + {component.inQualityInsp.toLocaleString()} QI)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
+                  <span className="text-slate-400 block text-[9px]">2. Vendor Deliveries:</span>
+                  <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-emerald-400'}`}>
+                    {selectedDaySimulation.isFrozen
+                      ? 'Frozen'
+                      : `+${selectedDaySimulation.totalInwardToday.toLocaleString()} ${component.uom}`}
+                  </span>
+                </div>
+                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
+                  <span className="text-slate-400 block text-[9px]">3. Production Consumption:</span>
+                  <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-rose-300'}`}>
+                    {selectedDaySimulation.isFrozen
+                      ? 'Frozen'
+                      : `-${selectedDaySimulation.dailyReq.toLocaleString()} ${component.uom}`}
+                  </span>
+                </div>
+                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
+                  <span className="text-slate-400 block text-[9px]">4. Projected Ending Balance:</span>
+                  <span
+                    className={`text-xs font-bold ${
+                      selectedDaySimulation.isFrozen
+                        ? 'text-slate-400'
+                        : selectedDaySimulation.endingStock < 0
+                        ? 'text-rose-400 font-black'
+                        : 'text-emerald-400'
+                    }`}
+                  >
+                    {selectedDaySimulation.isFrozen
+                      ? 'Frozen'
+                      : `${selectedDaySimulation.endingStock > 0 ? '+' : ''}${selectedDaySimulation.endingStock.toLocaleString()} ${component.uom}`}
+                  </span>
+                </div>
               </div>
-              <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                <span className="text-slate-400 block text-[9px]">2. Vendor Deliveries:</span>
-                <span className="text-xs font-bold text-emerald-400">
-                  +{selectedDaySimulation.totalInwardToday.toLocaleString()} {component.uom}
-                </span>
-              </div>
-              <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                <span className="text-slate-400 block text-[9px]">3. Production Consumption:</span>
-                <span className="text-xs font-bold text-rose-300">
-                  -{selectedDaySimulation.dailyReq.toLocaleString()} {component.uom}
-                </span>
-              </div>
-              <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                <span className="text-slate-400 block text-[9px]">4. Projected Ending Balance:</span>
-                <span
-                  className={`text-xs font-bold ${
-                    selectedDaySimulation.endingStock < 0 ? 'text-rose-400 font-black' : 'text-emerald-400'
-                  }`}
-                >
-                  {selectedDaySimulation.endingStock > 0 ? '+' : ''}
-                  {selectedDaySimulation.endingStock.toLocaleString()} {component.uom}
-                </span>
-              </div>
+              {effectiveStockDate && days.some((d) => d.isFrozen) && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800/90 rounded text-[10px] text-teal-300 border border-teal-800/50">
+                  <Lock className="w-2.5 h-2.5 text-teal-400 shrink-0" />
+                  <span>
+                    New opening stock ({days.find((d) => d.isEffectiveStockDate)?.openingStock.toLocaleString() || '3,000'} {component.uom}) is effective from <strong>{days.find((d) => d.isEffectiveStockDate)?.dayLabel || effectiveStockDate}</strong>. All previous calculations are frozen.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -612,44 +679,91 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                     <td key={d.date} className="py-1 px-1 border-l border-slate-800">
                       <span
                         className={`px-1 py-0.5 rounded text-[9px] font-bold ${
-                          d.status === 'CRITICAL_STOPPAGE'
+                          d.isFrozen
+                            ? 'bg-slate-700 text-slate-300 border border-slate-600'
+                            : d.status === 'CRITICAL_STOPPAGE'
                             ? 'bg-rose-600 text-white'
                             : d.isWorkingDay
                             ? 'bg-emerald-600 text-white'
                             : 'bg-slate-700 text-slate-400'
                         }`}
                       >
-                        {d.status === 'CRITICAL_STOPPAGE' ? 'HALTED' : d.isWorkingDay ? 'RUNNING' : 'OFF'}
+                        {d.isFrozen ? 'FROZEN' : d.status === 'CRITICAL_STOPPAGE' ? 'HALTED' : d.isWorkingDay ? 'RUNNING' : 'OFF'}
                       </span>
                     </td>
                   ))}
                 </tr>
 
-                {/* Inward Arrival */}
+                {/* 1. Opening Stock (NEW ROW ABOVE VENDOR ARRIVALS) */}
+                <tr>
+                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
+                    Opening Stock
+                  </td>
+                  {days.map((d) => (
+                    <td
+                      key={d.date}
+                      className={`py-1 px-1 border-l border-slate-800 font-bold ${
+                        d.isFrozen
+                          ? 'text-slate-500'
+                          : d.isEffectiveStockDate
+                          ? 'text-teal-300 bg-teal-950/60'
+                          : 'text-slate-200'
+                      }`}
+                    >
+                      {d.isFrozen ? (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-500">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Frozen</span>
+                        </span>
+                      ) : (
+                        <span>
+                          {d.openingStock.toLocaleString()}
+                          {d.isEffectiveStockDate && (
+                            <span className="ml-0.5 text-[8px] text-teal-400 font-normal" title={`MB52 Opening Stock baseline takes effect on ${d.dayLabel}`}>★</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* 2. Inward Arrival */}
                 <tr>
                   <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60">
                     Vendor Arrivals
                   </td>
                   {days.map((d) => (
                     <td key={d.date} className="py-1 px-1 border-l border-slate-800 text-emerald-400 font-bold">
-                      {d.totalInwardToday > 0 ? `+${d.totalInwardToday.toLocaleString()}` : '—'}
+                      {d.isFrozen ? (
+                        <span className="text-slate-500 text-[9px]">Frozen</span>
+                      ) : d.totalInwardToday > 0 ? (
+                        `+${d.totalInwardToday.toLocaleString()}`
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   ))}
                 </tr>
 
-                {/* Consumption */}
+                {/* 3. Consumption */}
                 <tr>
                   <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60">
                     Daily Burn Req
                   </td>
                   {days.map((d) => (
                     <td key={d.date} className="py-1 px-1 border-l border-slate-800 text-rose-300">
-                      {d.dailyReq > 0 ? `-${d.dailyReq.toLocaleString()}` : '—'}
+                      {d.isFrozen ? (
+                        <span className="text-slate-500 text-[9px]">Frozen</span>
+                      ) : d.dailyReq > 0 ? (
+                        `-${d.dailyReq.toLocaleString()}`
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   ))}
                 </tr>
 
-                {/* Ending Balance */}
+                {/* 4. Ending Balance */}
                 <tr>
                   <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
                     Projected Stock
@@ -658,10 +772,21 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                     <td
                       key={d.date}
                       className={`py-1 px-1 border-l border-slate-800 font-bold ${
-                        d.endingStock < 0 ? 'text-rose-400' : 'text-emerald-400'
+                        d.isFrozen
+                          ? 'text-slate-500'
+                          : d.endingStock < 0
+                          ? 'text-rose-400'
+                          : 'text-emerald-400'
                       }`}
                     >
-                      {d.endingStock.toLocaleString()}
+                      {d.isFrozen ? (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-500">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Frozen</span>
+                        </span>
+                      ) : (
+                        d.endingStock.toLocaleString()
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -686,6 +811,8 @@ interface MultiComponentMasterGanttProps {
   week: WeekDefinition;
   components: ExplodedBOMComponentSummary[];
   deliverySchedules: VendorDeliverySchedule[];
+  stockList?: StockReportItem[];
+  openingStockDate?: string;
   onUpdateSchedule?: (updatedSchedule: VendorDeliverySchedule) => void;
   defaultHighlightCriticalPath?: boolean;
 }
@@ -697,6 +824,8 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
   week,
   components,
   deliverySchedules,
+  stockList,
+  openingStockDate,
   onUpdateSchedule,
   defaultHighlightCriticalPath = true
 }) => {
@@ -707,6 +836,10 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
   // Pre-calculate simulation for each component
   const evaluatedComponents = useMemo(() => {
     return components.map((comp) => {
+      const compEffectiveDate = comp.stockDate ||
+        comp.uploadDate ||
+        (stockList && stockList.length > 0 ? getLineItemMB52UploadDate(comp.componentCode, stockList, openingStockDate) : openingStockDate);
+
       const sim = simulateBOMComponentDailyTimeline(
         comp,
         fgCode,
@@ -714,7 +847,10 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
         fgTotalGrossTarget,
         week,
         deliverySchedules,
-        { horizonDays: week.daysCount || 7 }
+        {
+          horizonDays: week.daysCount || 7,
+          effectiveStockDate: compEffectiveDate ? normalizeToISODate(compEffectiveDate) : undefined
+        }
       );
       const totalRequired = fgTotalGrossTarget * comp.bomQty;
       const coveragePercent = totalRequired > 0
@@ -1035,6 +1171,8 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                           fgTotalGrossTarget={fgTotalGrossTarget}
                           week={week}
                           deliverySchedules={deliverySchedules}
+                          stockList={stockList}
+                          openingStockDate={openingStockDate}
                           onUpdateSchedule={onUpdateSchedule}
                           defaultHighlightCriticalPath={highlightCriticalPath}
                         />

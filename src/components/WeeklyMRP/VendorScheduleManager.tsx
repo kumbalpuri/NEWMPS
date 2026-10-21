@@ -29,7 +29,8 @@ import {
   HelpCircle,
   X,
   History,
-  Flame
+  Flame,
+  Lock
 } from 'lucide-react';
 import {
   BOMItem,
@@ -45,6 +46,11 @@ import {
   USER_ROLES
 } from '../../types';
 import { isDateInWeek } from '../../utils/weeklyMrpEngine';
+import {
+  isScheduleReadOnly,
+  isDateBeforeMB52Upload,
+  getLineItemMB52UploadDate
+} from '../../utils/mb52LockEngine';
 import { HistoryDrawer, HistoryDrawerFilter } from './HistoryDrawer';
 import { SupplyRiskHeatmap } from './SupplyRiskHeatmap';
 
@@ -63,6 +69,7 @@ interface VendorScheduleManagerProps {
   onSelectMonth: (month: string) => void;
   currentRole: UserRole;
   onSelectRole: (role: UserRole) => void;
+  openingStockDate?: string;
 }
 
 interface ConsolidatedComponentRow {
@@ -134,8 +141,13 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
   selectedMonth,
   onSelectMonth,
   currentRole,
-  onSelectRole
+  onSelectRole,
+  openingStockDate
 }) => {
+  const getUploadDate = (compCode: string) => {
+    return getLineItemMB52UploadDate(compCode, stockList, openingStockDate);
+  };
+
   // Navigation & View Mode
   const [activeTab, setActiveTab] = useState<'supply_risk_heatmap' | 'consolidated_matrix' | 'schedules_list'>('consolidated_matrix');
   const [scopeMode, setScopeMode] = useState<'WEEK' | 'MONTH'>('WEEK');
@@ -787,6 +799,15 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
         validationMessage = 'Promised quantity must be greater than 0';
       }
 
+      // MB52 Upload Baseline Date Validation:
+      // "even the buyer cannot add schedule after the upload date for previous date. he can add data for future date only.."
+      const minAllowedDate = getUploadDate(compCode);
+      if (compCode && deliveryDateStr < minAllowedDate) {
+        isValid = false;
+        validationStatus = 'ERROR';
+        validationMessage = `Invalid Delivery Date: ${deliveryDateStr} is before MB52 upload date (${minAllowedDate}) for ${compCode}. Buyer can only add schedules for future dates on or after upload date.`;
+      }
+
       parsed.push({
         rowIndex: idx + 1,
         poNumber,
@@ -945,6 +966,12 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
 
   const handleOpenAddSingleModal = (comp?: ConsolidatedComponentRow, existingSchedule?: VendorDeliverySchedule) => {
     if (existingSchedule) {
+      if (isScheduleReadOnly(existingSchedule, stockList, openingStockDate)) {
+        alert(
+          `This delivery schedule is read-only because its delivery date (${existingSchedule.expectedDeliveryDate}) is prior to the MB52 upload baseline date (${getUploadDate(existingSchedule.componentCode)}). All data prior to the upload date is locked.`
+        );
+        return;
+      }
       setSingleScheduleForm({
         id: existingSchedule.id,
         poNumber: existingSchedule.poNumber,
@@ -962,9 +989,9 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
         reasonForChange: 'Rescheduled arrival date and quantity for production requirements.'
       });
     } else if (comp) {
-      const defaultDate = scopeMode === 'WEEK' && activeWeek?.startDate
-        ? activeWeek.startDate
-        : `${selectedMonth}-10`;
+      const minDate = getUploadDate(comp.componentCode);
+      const targetWeekStartDate = scopeMode === 'WEEK' && activeWeek?.startDate ? activeWeek.startDate : `${selectedMonth}-10`;
+      const defaultDate = targetWeekStartDate >= minDate ? targetWeekStartDate : minDate;
 
       setSingleScheduleForm({
         poNumber: `PO-${selectedMonth.replace('-', '')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -985,14 +1012,19 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
       });
     } else {
       const firstComp = consolidatedRows[0];
+      const compCode = firstComp?.componentCode || '100201';
+      const minDate = getUploadDate(compCode);
+      const targetWeekStartDate = activeWeek?.startDate || `${selectedMonth}-10`;
+      const defaultDate = targetWeekStartDate >= minDate ? targetWeekStartDate : minDate;
+
       setSingleScheduleForm({
         poNumber: `PO-${selectedMonth.replace('-', '')}-${Math.floor(1000 + Math.random() * 9000)}`,
-        componentCode: firstComp?.componentCode || '100201',
+        componentCode: compCode,
         componentDescription: firstComp?.componentDescription || 'Component',
         vendorCode: firstComp?.vendorCode || 'V-1020',
         vendorName: firstComp?.vendorName || 'CastAlu Technologies',
         buyerName: firstComp?.buyerName || 'Rajesh Kumar',
-        expectedDeliveryDate: activeWeek?.startDate || `${selectedMonth}-10`,
+        expectedDeliveryDate: defaultDate,
         weekId: activeWeek?.id || 'w-1',
         promisedQty: 2000,
         carrierOrTracking: 'Direct Road Express',
@@ -1006,6 +1038,14 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
 
   const handleSaveSingleSchedule = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const minAllowedDate = getUploadDate(singleScheduleForm.componentCode);
+    if (singleScheduleForm.expectedDeliveryDate < minAllowedDate) {
+      alert(
+        `Invalid Delivery Date: Expected delivery date (${singleScheduleForm.expectedDeliveryDate}) cannot be before the MB52 upload baseline date (${minAllowedDate}) for line item ${singleScheduleForm.componentCode}. Buyer can add data for future dates only.`
+      );
+      return;
+    }
 
     const now = new Date();
     const formattedTimestamp = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -1092,6 +1132,13 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
   const handleDeleteSchedule = (scheduleId: string) => {
     const target = vendorDeliverySchedules.find((s) => s.id === scheduleId);
     if (!target) return;
+
+    if (isScheduleReadOnly(target, stockList, openingStockDate)) {
+      alert(
+        `Cannot delete schedule: delivery date (${target.expectedDeliveryDate}) is prior to the MB52 upload baseline date (${getUploadDate(target.componentCode)}). Historical schedules are locked as read-only.`
+      );
+      return;
+    }
 
     if (window.confirm(`Are you sure you want to cancel and remove PO #${target.poNumber || target.id} for component ${target.componentCode}?`)) {
       const now = new Date();
@@ -1947,8 +1994,14 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
                 ) : (
                   vendorDeliverySchedules.map((s) => {
                     const matchedBOM = boms.find((b) => b.componentCode === s.componentCode);
+                    const isReadOnly = isScheduleReadOnly(s, stockList, openingStockDate);
                     return (
-                      <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={s.id}
+                        className={`transition-colors ${
+                          isReadOnly ? 'bg-slate-50/70 text-slate-500' : 'hover:bg-slate-50'
+                        }`}
+                      >
                         <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
                           {s.poNumber || s.id}
                         </td>
@@ -1969,17 +2022,19 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
                         </td>
                         <td className="py-2.5 px-3 font-mono font-semibold text-slate-900">
                           <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {isReadOnly ? <Lock className="w-3 h-3 text-slate-400" /> : <Calendar className="w-3 h-3 text-slate-400" />}
                             <span>{s.expectedDeliveryDate}</span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 text-xs">
+                        <td className={`py-2.5 px-3 text-right font-mono font-bold text-xs ${isReadOnly ? 'text-slate-400' : 'text-emerald-700'}`}>
                           +{s.promisedQty.toLocaleString()}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              s.deliveryStatus === 'CONFIRMED_ON_TRACK'
+                              isReadOnly
+                                ? 'bg-slate-100 text-slate-600 border border-slate-300'
+                                : s.deliveryStatus === 'CONFIRMED_ON_TRACK'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : s.deliveryStatus === 'IN_TRANSIT'
                                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -1990,7 +2045,7 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
                                 : 'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}
                           >
-                            {s.deliveryStatus.replace(/_/g, ' ')}
+                            {isReadOnly ? 'LOCKED / READ-ONLY' : s.deliveryStatus.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-slate-600 text-[11px]">
@@ -2034,25 +2089,37 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
                               );
                             })()}
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const compRow = consolidatedRows.find((c) => c.componentCode === s.componentCode);
-                                handleOpenAddSingleModal(compRow, s);
-                              }}
-                              className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors"
-                              title="Edit schedule commitment"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSchedule(s.id)}
-                              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
-                              title="Delete/cancel schedule"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {isReadOnly ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[11px] text-slate-400 font-medium"
+                                title={`Read-Only: Delivery date (${s.expectedDeliveryDate}) is prior to MB52 upload baseline (${getUploadDate(s.componentCode)}). Historical schedules cannot be edited or removed.`}
+                              >
+                                <Lock className="w-3 h-3 text-slate-400" />
+                                Locked
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const compRow = consolidatedRows.find((c) => c.componentCode === s.componentCode);
+                                    handleOpenAddSingleModal(compRow, s);
+                                  }}
+                                  className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors"
+                                  title="Edit schedule commitment"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSchedule(s.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                                  title="Delete/cancel schedule"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2420,14 +2487,19 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Expected Delivery Date:</label>
+                  <label className="block font-bold text-slate-700 mb-1">Expected Delivery Date *</label>
                   <input
                     type="date"
+                    min={getUploadDate(singleScheduleForm.componentCode)}
                     value={singleScheduleForm.expectedDeliveryDate}
                     onChange={(e) => setSingleScheduleForm({ ...singleScheduleForm, expectedDeliveryDate: e.target.value })}
                     className="w-full p-2 border border-slate-300 rounded-lg font-mono font-bold"
                     required
                   />
+                  <div className="text-[10px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200 mt-1 flex items-start gap-1">
+                    <Lock className="w-3 h-3 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>MB52 Baseline: <strong>{getUploadDate(singleScheduleForm.componentCode)}</strong>. Schedules can only be added for future dates on/after this date.</span>
+                  </div>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Promised Inward Qty:</label>

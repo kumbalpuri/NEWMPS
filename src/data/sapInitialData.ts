@@ -501,6 +501,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 300,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -515,6 +517,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 250,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -529,6 +533,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 400,
     uom: 'SET',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -543,6 +549,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 300,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -557,6 +565,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 500,
     uom: 'PC',
     materialType: 'PM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -571,6 +581,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 50,
     uom: 'PC',
     materialType: 'PM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -585,6 +597,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 200,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -599,6 +613,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 2000,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -613,6 +629,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 300,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -627,6 +645,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 200,
     uom: 'SET',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -641,6 +661,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 500,
     uom: 'PC',
     materialType: 'RM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   },
   {
@@ -655,6 +677,8 @@ export const INITIAL_STOCK_REPORT: StockReportItem[] = [
     safetyStock: 50,
     uom: 'PC',
     materialType: 'PM',
+    stockDate: '2026-08-08',
+    uploadDate: '2026-08-08',
     lastUpdated: '2026-08-08 07:30'
   }
 ];

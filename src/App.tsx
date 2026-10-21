@@ -24,6 +24,7 @@ import {
   INITIAL_PLAN_FREEZE_ITEMS,
   INITIAL_DELIVERY_CHANGE_LOGS
 } from './data/sapInitialData';
+import { normalizeToISODate } from './utils/mb52LockEngine';
 
 // Layout Components
 import { Header } from './components/Header';
@@ -97,7 +98,22 @@ export default function App() {
 
   const [stockList, setStockList] = useState<StockReportItem[]>(() => {
     const saved = localStorage.getItem('sap_stock');
-    return saved ? JSON.parse(saved) : INITIAL_STOCK_REPORT;
+    if (!saved) return INITIAL_STOCK_REPORT;
+    try {
+      const parsed: StockReportItem[] = JSON.parse(saved);
+      return parsed.map((item) => {
+        const rawDate = item.stockDate || item.uploadDate || item.lastUpdated;
+        const normalized = normalizeToISODate(rawDate) || '2026-08-08';
+        return {
+          ...item,
+          stockDate: item.stockDate ? normalizeToISODate(item.stockDate) : normalized,
+          uploadDate: item.uploadDate ? normalizeToISODate(item.uploadDate) : normalized,
+          lastUpdated: item.lastUpdated || normalized
+        };
+      });
+    } catch {
+      return INITIAL_STOCK_REPORT;
+    }
   });
 
   const [openingStockDate, setOpeningStockDate] = useState<string>(() => {
@@ -371,6 +387,7 @@ export default function App() {
                 onSelectMonth={setSelectedMonth}
                 currentRole={currentRole}
                 onSelectRole={setCurrentRole}
+                openingStockDate={openingStockDate}
               />
             )}
 
@@ -431,6 +448,8 @@ export default function App() {
                 onUpdateMB51={setMb51List}
                 weeks={weeks}
                 selectedMonth={selectedMonth}
+                stockList={stockList}
+                openingStockDate={openingStockDate}
               />
             )}
 
