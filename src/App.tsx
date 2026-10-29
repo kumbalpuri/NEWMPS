@@ -141,6 +141,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_DELIVERY_CHANGE_LOGS;
   });
 
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+
   // LocalStorage sync effects
   useEffect(() => {
     localStorage.setItem('sap_sidebar_collapsed', String(isSidebarCollapsed));
@@ -299,6 +301,8 @@ export default function App() {
           onResetData={handleResetData}
           criticalShortageCount={criticalShortagesCount}
           activeViewTitle={getActiveViewTitle()}
+          globalSearchTerm={globalSearchTerm}
+          setGlobalSearchTerm={setGlobalSearchTerm}
         />
 
         {/* Scrollable View Container - Full Width Dynamic Layout */}
@@ -327,6 +331,7 @@ export default function App() {
                 onSelectRole={setCurrentRole}
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                openingStockDate={openingStockDate}
               />
             )}
 
@@ -388,6 +393,7 @@ export default function App() {
                 currentRole={currentRole}
                 onSelectRole={setCurrentRole}
                 openingStockDate={openingStockDate}
+                globalSearchTerm={globalSearchTerm}
               />
             )}
 
@@ -403,6 +409,7 @@ export default function App() {
                 selectedMonth={selectedMonth}
                 onSelectMonth={setSelectedMonth}
                 openingStockDate={openingStockDate}
+                globalSearchTerm={globalSearchTerm}
               />
             )}
 
@@ -416,6 +423,7 @@ export default function App() {
                 selectedMonth={selectedMonth}
                 onSelectMonth={setSelectedMonth}
                 openingStockDate={openingStockDate}
+                globalSearchTerm={globalSearchTerm}
               />
             )}
 
@@ -460,6 +468,7 @@ export default function App() {
                 onUpdateStock={setStockList}
                 openingStockDate={openingStockDate}
                 onUpdateOpeningStockDate={setOpeningStockDate}
+                globalSearchTerm={globalSearchTerm}
               />
             )}
 

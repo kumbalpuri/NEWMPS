@@ -39,6 +39,7 @@ interface WeeklyRMSupplyViewProps {
   selectedMonth: string;
   onSelectMonth: (month: string) => void;
   openingStockDate?: string;
+  globalSearchTerm: string;
 }
 
 export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
@@ -50,7 +51,8 @@ export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
   stockList,
   selectedMonth,
   onSelectMonth,
-  openingStockDate
+  openingStockDate,
+  globalSearchTerm
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [buyerFilter, setBuyerFilter] = useState<string>('ALL');
@@ -76,17 +78,28 @@ export const WeeklyRMSupplyView: React.FC<WeeklyRMSupplyViewProps> = ({
   const uniqueBuyers = Array.from(new Set(summaries.map((s) => s.buyerName))).filter(Boolean);
 
   const filteredSummaries = summaries.filter((s) => {
+    const term = searchTerm.trim().toLowerCase();
+    const globalTerm = globalSearchTerm.trim().toLowerCase();
+
     const matchesSearch =
-      s.componentCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.componentDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.buyerName.toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      s.componentCode.toLowerCase().includes(term) ||
+      s.componentDescription.toLowerCase().includes(term) ||
+      s.vendorName.toLowerCase().includes(term) ||
+      s.buyerName.toLowerCase().includes(term);
+
+    const matchesGlobal =
+      !globalTerm ||
+      s.componentCode.toLowerCase().includes(globalTerm) ||
+      s.componentDescription.toLowerCase().includes(globalTerm) ||
+      s.vendorName.toLowerCase().includes(globalTerm) ||
+      s.buyerName.toLowerCase().includes(globalTerm);
 
     const matchesBuyer = buyerFilter === 'ALL' || s.buyerName === buyerFilter;
     const matchesCategory = categoryFilter === 'ALL' || s.category === categoryFilter;
     const matchesStatus = statusFilter === 'ALL' || s.overallStatus === statusFilter;
 
-    return matchesSearch && matchesBuyer && matchesCategory && matchesStatus;
+    return matchesSearch && matchesGlobal && matchesBuyer && matchesCategory && matchesStatus;
   });
 
   // KPI Calculations

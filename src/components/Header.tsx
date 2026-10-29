@@ -20,6 +20,8 @@ interface HeaderProps {
   onResetData: () => void;
   criticalShortageCount: number;
   activeViewTitle?: string;
+  globalSearchTerm: string;
+  setGlobalSearchTerm: (term: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,7 +33,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   onResetData,
   criticalShortageCount,
-  activeViewTitle = 'Weekly MRP & Supply Operations'
+  activeViewTitle = 'Weekly MRP & Supply Operations',
+  globalSearchTerm,
+  setGlobalSearchTerm
 }) => {
   const currentRoleDef = USER_ROLES.find((r) => r.id === currentRole) || USER_ROLES[0];
 
@@ -52,6 +56,17 @@ export const Header: React.FC<HeaderProps> = ({
             <Layers className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="truncate">{activeViewTitle}</span>
           </div>
+        </div>
+
+        {/* Middle: Global Search */}
+        <div className="flex-1 max-w-md mx-4">
+          <input
+            type="text"
+            placeholder="Search parts or vendors..."
+            value={globalSearchTerm}
+            onChange={(e) => setGlobalSearchTerm(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-blue-500"
+          />
         </div>
 
         {/* Right: Quick Indicators & Controls */}

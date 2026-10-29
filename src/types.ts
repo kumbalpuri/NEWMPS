@@ -217,6 +217,8 @@ export interface RMWeeklyRequirementSummary {
     projectedStock: number;
     deficit: number; // If projectedStock < safetyStock or < 0
     status: 'OK' | 'WARNING' | 'SHORTAGE';
+    currentStock?: number;
+    safetyStock?: number;
   }[];
   totalGrossRequirement: number;
   totalInwardReceived: number;
@@ -336,6 +338,11 @@ export interface ExplodedBOMWeekDetail {
   weekId: string;
   weekNo: number;
   weekLabel: string;
+  startDate?: string;
+  endDate?: string;
+  daysCount?: number;
+  workingDays?: number;
+  fgGrossTarget?: number;
   isPrior: boolean;
   isCurrent: boolean;
   isFuture: boolean;

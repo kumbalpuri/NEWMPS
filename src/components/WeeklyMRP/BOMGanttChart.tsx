@@ -142,11 +142,11 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
   const { days, isFeasible, firstStockoutDate, criticalPath } = timelineResult;
   const isCriticalPathComp = criticalPath?.isCriticalPath ?? !isFeasible;
 
-  // Calculate coverage percentage (guard against undefined / NaN)
+  // Calculate coverage percentage (guard against undefined / NaN and clamp to 0..100)
   const totalRequired = fgTotalGrossTarget * component.bomQty;
   const expectedDeliveries = component.totalScheduledInward ?? component.expectedDeliveriesTotal ?? 0;
   const coveragePercent = totalRequired > 0
-    ? Math.min(100, Math.round(((component.currentStock + expectedDeliveries) / totalRequired) * 100))
+    ? Math.max(0, Math.min(100, Math.round(((component.currentStock + expectedDeliveries) / totalRequired) * 100)))
     : 100;
 
   const handleDateClick = (dateStr: string) => {
@@ -595,21 +595,34 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                 <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
                   <div className="flex items-center justify-between text-slate-400 text-[9px]">
                     <span>1. Opening Inventory:</span>
-                    {selectedDaySimulation.isEffectiveStockDate && (
+                    {selectedDaySimulation.isEffectiveStockDate ? (
                       <span className="px-1 py-0.2 rounded bg-teal-900 text-teal-300 text-[8px] font-bold">MB52 Baseline</span>
-                    )}
+                    ) : !selectedDaySimulation.isFrozen ? (
+                      <span className="px-1 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[8px] font-bold">Carried Forward</span>
+                    ) : null}
                   </div>
                   <div className="flex items-baseline gap-1.5 flex-wrap">
-                    <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-white'}`}>
+                    <span
+                      className={`text-xs font-bold ${
+                        selectedDaySimulation.isFrozen
+                          ? 'text-slate-400'
+                          : selectedDaySimulation.openingStock < 0
+                          ? 'text-rose-400'
+                          : 'text-white'
+                      }`}
+                    >
                       {selectedDaySimulation.isFrozen
                         ? 'Frozen'
                         : `${selectedDaySimulation.openingStock.toLocaleString()} ${component.uom}`}
                     </span>
-                    {!selectedDaySimulation.isFrozen && component.inQualityInsp && component.inQualityInsp > 0 && (
-                      <span className="text-[9px] text-teal-400 font-sans font-normal" title="Unrestricted Stock + In-Quality Inspection">
-                        ({component.unrestrictedStock?.toLocaleString() || (component.totalPhysicalStock - component.inQualityInsp).toLocaleString()} + {component.inQualityInsp.toLocaleString()} QI)
-                      </span>
-                    )}
+                    {!selectedDaySimulation.isFrozen &&
+                      selectedDaySimulation.isEffectiveStockDate &&
+                      component.inQualityInsp &&
+                      component.inQualityInsp > 0 && (
+                        <span className="text-[9px] text-teal-400 font-sans font-normal" title="Unrestricted Stock + In-Quality Inspection">
+                          ({component.unrestrictedStock?.toLocaleString() || (component.totalPhysicalStock - component.inQualityInsp).toLocaleString()} + {component.inQualityInsp.toLocaleString()} QI)
+                        </span>
+                      )}
                   </div>
                 </div>
                 <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
@@ -849,12 +862,14 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
         deliverySchedules,
         {
           horizonDays: week.daysCount || 7,
-          effectiveStockDate: compEffectiveDate ? normalizeToISODate(compEffectiveDate) : undefined
+          effectiveStockDate: compEffectiveDate ? normalizeToISODate(compEffectiveDate) : undefined,
+          stockList
         }
       );
       const totalRequired = fgTotalGrossTarget * comp.bomQty;
+      const expectedDeliveries = comp.totalScheduledInward ?? comp.expectedDeliveriesTotal ?? 0;
       const coveragePercent = totalRequired > 0
-        ? Math.min(100, Math.round(((comp.currentStock + comp.expectedDeliveriesTotal) / totalRequired) * 100))
+        ? Math.max(0, Math.min(100, Math.round(((comp.currentStock + expectedDeliveries) / totalRequired) * 100)))
         : 100;
 
       const isCriticalPath = sim.criticalPath?.isCriticalPath ?? !sim.isFeasible;
@@ -868,7 +883,7 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
         impact: sim.criticalPath?.impactOnFinalDelivery || ''
       };
     });
-  }, [components, fgCode, fgDescription, fgTotalGrossTarget, week, deliverySchedules]);
+  }, [components, fgCode, fgDescription, fgTotalGrossTarget, week, deliverySchedules, stockList, openingStockDate]);
 
   // Critical path summary for Finished Good
   const criticalCount = evaluatedComponents.filter((c) => c.isCriticalPath).length;

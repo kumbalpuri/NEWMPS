@@ -30,6 +30,7 @@ interface WeeklyFGSupplyViewProps {
   selectedMonth: string;
   onSelectMonth: (month: string) => void;
   openingStockDate?: string;
+  globalSearchTerm: string;
 }
 
 export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
@@ -39,7 +40,8 @@ export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
   stockList,
   selectedMonth,
   onSelectMonth,
-  openingStockDate
+  openingStockDate,
+  globalSearchTerm
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFG, setSelectedFG] = useState<string>('ALL');
@@ -58,14 +60,24 @@ export const WeeklyFGSupplyView: React.FC<WeeklyFGSupplyViewProps> = ({
   );
 
   const filteredSummaries = coverageSummaries.filter((s) => {
+    const term = searchTerm.trim().toLowerCase();
+    const globalTerm = globalSearchTerm.trim().toLowerCase();
+
     const matchesSearch =
-      s.fgCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.fgDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      !term ||
+      s.fgCode.toLowerCase().includes(term) ||
+      s.fgDescription.toLowerCase().includes(term) ||
+      (s.customerName || '').toLowerCase().includes(term);
+
+    const matchesGlobal =
+      !globalTerm ||
+      s.fgCode.toLowerCase().includes(globalTerm) ||
+      s.fgDescription.toLowerCase().includes(globalTerm) ||
+      (s.customerName || '').toLowerCase().includes(globalTerm);
 
     const matchesFG = selectedFG === 'ALL' || s.fgCode === selectedFG;
 
-    return matchesSearch && matchesFG;
+    return matchesSearch && matchesGlobal && matchesFG;
   });
 
   // KPI Calculations

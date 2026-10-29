@@ -49,7 +49,8 @@ import { isDateInWeek } from '../../utils/weeklyMrpEngine';
 import {
   isScheduleReadOnly,
   isDateBeforeMB52Upload,
-  getLineItemMB52UploadDate
+  getLineItemMB52UploadDate,
+  getEffectiveStockSnapshot
 } from '../../utils/mb52LockEngine';
 import { HistoryDrawer, HistoryDrawerFilter } from './HistoryDrawer';
 import { SupplyRiskHeatmap } from './SupplyRiskHeatmap';
@@ -70,6 +71,7 @@ interface VendorScheduleManagerProps {
   currentRole: UserRole;
   onSelectRole: (role: UserRole) => void;
   openingStockDate?: string;
+  globalSearchTerm: string;
 }
 
 interface ConsolidatedComponentRow {
@@ -142,7 +144,8 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
   onSelectMonth,
   currentRole,
   onSelectRole,
-  openingStockDate
+  openingStockDate,
+  globalSearchTerm
 }) => {
   const getUploadDate = (compCode: string) => {
     return getLineItemMB52UploadDate(compCode, stockList, openingStockDate);
@@ -313,24 +316,38 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
       const vendorCode = vbMapping ? vbMapping.vendorCode : 'V-NONE';
       const leadTimeDays = vbMapping ? vbMapping.leadTimeDays : 7;
 
-      // Stock Info (MB52 Unrestricted)
-      const stockItem = stockList.find((s) => s.partNumber === comp.componentCode);
-      const totalPhysicalStock = stockItem ? stockItem.unrestrictedStock : 0;
-      
-      // Calculate reserved stock by frozen plans in the current review week
-      const isCommon = comp.usedInFGs.length > 1;
-      const reservedStock = isCommon ? Math.round(totalPhysicalStock * 0.15) : 0;
-      const availableStock = Math.max(0, totalPhysicalStock - reservedStock);
-
-      // Weekly Gross Requirements and Inward Deliveries
+      // Weekly Gross Requirements, Inward Deliveries, and Rolling Stock across weeks
       const weeklyGrossReq: Record<string, number> = {};
       const weeklyInwardDeliveries: Record<string, number> = {};
       const weeklySchedules: Record<string, VendorDeliverySchedule[]> = {};
+      const weeklyOpeningStock: Record<string, number> = {};
+      const weeklyClosingStock: Record<string, number> = {};
 
       let monthTotalGrossReq = 0;
       let monthTotalInward = 0;
+      let rollingPhysical = 0;
+      let hasRollingBaseline = false;
+      let lastSnapshotDate = '';
 
       monthWeeks.forEach((week) => {
+        const snap = getEffectiveStockSnapshot(comp.componentCode, stockList, week, openingStockDate);
+        const snapDate = snap.effectiveDate;
+        const isNewUploadInWeek =
+          snapDate &&
+          snapDate !== lastSnapshotDate &&
+          week.startDate &&
+          week.endDate &&
+          snapDate >= week.startDate &&
+          snapDate <= week.endDate;
+
+        if (!hasRollingBaseline || isNewUploadInWeek) {
+          rollingPhysical = snap.totalPhysicalStock;
+          hasRollingBaseline = true;
+          lastSnapshotDate = snapDate || '';
+        }
+
+        weeklyOpeningStock[week.id] = Math.round(rollingPhysical);
+
         // Calculate Gross Req across all FG plans in this month for this week
         let grossReq = 0;
         comp.usedInFGs.forEach((fgUsage) => {
@@ -356,7 +373,19 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
         const totalInwardForWeek = schedulesForWeek.reduce((sum, s) => sum + (s.promisedQty || 0), 0);
         weeklyInwardDeliveries[week.id] = totalInwardForWeek;
         monthTotalInward += totalInwardForWeek;
+
+        rollingPhysical = rollingPhysical + totalInwardForWeek - grossReq;
+        weeklyClosingStock[week.id] = Math.round(rollingPhysical);
       });
+
+      const isCommon = comp.usedInFGs.length > 1;
+      const baseStockForScope =
+        scopeMode === 'WEEK' && activeWeek && weeklyOpeningStock[activeWeek.id] !== undefined
+          ? weeklyOpeningStock[activeWeek.id]
+          : (monthWeeks[0] ? (weeklyOpeningStock[monthWeeks[0].id] ?? 0) : 0);
+      const totalPhysicalStock = baseStockForScope;
+      const reservedStock = isCommon && totalPhysicalStock > 0 ? Math.round(totalPhysicalStock * 0.15) : 0;
+      const availableStock = totalPhysicalStock - reservedStock;
 
       // Compute Selected Scope Metrics
       let selectedScopeGrossReq = 0;
@@ -379,7 +408,11 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
       const selectedScopeDeficit = selectedScopeBalance < 0 ? Math.abs(selectedScopeBalance) : 0;
       const hasShortage = selectedScopeBalance < 0;
 
-      const monthEndingBalance = availableStock + monthTotalInward - monthTotalGrossReq;
+      const lastWeekId = monthWeeks[monthWeeks.length - 1]?.id;
+      const monthEndingBalance =
+        lastWeekId && weeklyClosingStock[lastWeekId] !== undefined
+          ? weeklyClosingStock[lastWeekId]
+          : availableStock + monthTotalInward - monthTotalGrossReq;
 
       rows.push({
         componentCode: comp.componentCode,
@@ -430,20 +463,32 @@ export const VendorScheduleManager: React.FC<VendorScheduleManagerProps> = ({
       if (criticalityFilter === 'COMMON_ONLY' && !r.isCommonPart) return false;
       if (criticalityFilter === 'SCHEDULED_ONLY' && r.selectedScopeInward <= 0) return false;
 
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const matchCode = r.componentCode.toLowerCase().includes(term);
-        const matchDesc = r.componentDescription.toLowerCase().includes(term);
-        const matchVendor = r.vendorName.toLowerCase().includes(term);
-        const matchBuyer = r.buyerName.toLowerCase().includes(term);
-        const matchFGs = r.usedInFGs.some(
+      const term = searchTerm.trim().toLowerCase();
+      const globalTerm = globalSearchTerm.trim().toLowerCase();
+
+      const matchesInternal =
+        !term ||
+        r.componentCode.toLowerCase().includes(term) ||
+        r.componentDescription.toLowerCase().includes(term) ||
+        r.vendorName.toLowerCase().includes(term) ||
+        r.buyerName.toLowerCase().includes(term) ||
+        r.usedInFGs.some(
           (fg) => fg.fgCode.toLowerCase().includes(term) || fg.fgDescription.toLowerCase().includes(term)
         );
-        return matchCode || matchDesc || matchVendor || matchBuyer || matchFGs;
-      }
-      return true;
+
+      const matchesGlobal =
+        !globalTerm ||
+        r.componentCode.toLowerCase().includes(globalTerm) ||
+        r.componentDescription.toLowerCase().includes(globalTerm) ||
+        r.vendorName.toLowerCase().includes(globalTerm) ||
+        r.buyerName.toLowerCase().includes(globalTerm) ||
+        r.usedInFGs.some(
+          (fg) => fg.fgCode.toLowerCase().includes(globalTerm) || fg.fgDescription.toLowerCase().includes(globalTerm)
+        );
+
+      return matchesInternal && matchesGlobal;
     });
-  }, [consolidatedRows, selectedBuyer, selectedCategory, criticalityFilter, searchTerm]);
+  }, [consolidatedRows, selectedBuyer, selectedCategory, criticalityFilter, searchTerm, globalSearchTerm]);
 
   // Summary Metrics
   const summaryMetrics = useMemo(() => {

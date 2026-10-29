@@ -2871,7 +2871,16 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                                 <div className="bg-slate-50 rounded p-3 border border-slate-200 text-xs space-y-2 font-mono">
                                                                   <div className="font-bold text-slate-800 font-sans text-xs">MRP Component Net Requirements Formula:</div>
                                                                   <div className="flex flex-wrap items-center gap-2 text-slate-700">
-                                                                    <span>MB52 Physical Stock: <strong className="text-slate-900">{comp.totalPhysicalStock.toLocaleString()} {comp.uom}</strong></span>
+                                                                    <span>
+                                                                      {comp.stockDate &&
+                                                                      cockpit.selectedWeek.startDate &&
+                                                                      cockpit.selectedWeek.endDate &&
+                                                                      comp.stockDate >= cockpit.selectedWeek.startDate &&
+                                                                      comp.stockDate <= cockpit.selectedWeek.endDate
+                                                                        ? 'MB52 Opening Stock:'
+                                                                        : 'Week Opening Stock (Carried Forward):'}{' '}
+                                                                      <strong className="text-slate-900">{comp.totalPhysicalStock.toLocaleString()} {comp.uom}</strong>
+                                                                    </span>
                                                                     <span>-</span>
                                                                     <span>Allocated / Reserved: <strong className="text-amber-700">{comp.reservedStock.toLocaleString()} {comp.uom}</strong></span>
                                                                     <span>+</span>
@@ -2881,8 +2890,8 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                                     <span>=</span>
                                                                     <span className="text-sm">
                                                                       Net Balance:{' '}
-                                                                      <strong className={comp.stockDeficit < 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
-                                                                        {comp.stockDeficit > 0 ? `+${comp.stockDeficit.toLocaleString()}` : comp.stockDeficit.toLocaleString()} {comp.uom}
+                                                                      <strong className={comp.projectedDeficitWithDeliveries < 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
+                                                                        {comp.projectedDeficitWithDeliveries > 0 ? `+${comp.projectedDeficitWithDeliveries.toLocaleString()}` : comp.projectedDeficitWithDeliveries.toLocaleString()} {comp.uom}
                                                                       </strong>
                                                                     </span>
                                                                   </div>
@@ -2891,7 +2900,7 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                                     <strong className="text-slate-900 font-bold font-mono">
                                                                       {comp.projectedCoverageFgUnits.toLocaleString()} units
                                                                     </strong>{' '}
-                                                                    out of {fg.totalWeekGrossTarget.toLocaleString()} target units ({Math.min(100, Math.round((comp.projectedCoverageFgUnits / (fg.totalWeekGrossTarget || 1)) * 100))}% coverage).
+                                                                    out of {fg.totalWeekGrossTarget.toLocaleString()} target units ({Math.max(0, Math.min(100, Math.round((comp.projectedCoverageFgUnits / (fg.totalWeekGrossTarget || 1)) * 100)))}% coverage).
                                                                   </div>
                                                                 </div>
                                                               </div>
@@ -2902,18 +2911,28 @@ export const MondayReviewCockpit: React.FC<MondayReviewCockpitProps> = ({
                                                               <div>
                                                                 <span className="text-slate-500">Quick Formula: </span>
                                                                 <span className="text-slate-700">
-                                                                  MB52 ({comp.totalPhysicalStock.toLocaleString()}
-                                                                  {comp.inQualityInsp && comp.inQualityInsp > 0 ? (
-                                                                    <span className="text-[10px] text-teal-700 font-sans font-normal ml-0.5" title="Unrestricted Stock + In-Quality Inspection">
-                                                                      [{comp.unrestrictedStock?.toLocaleString() || (comp.totalPhysicalStock - comp.inQualityInsp).toLocaleString()} + {comp.inQualityInsp.toLocaleString()} QI]
-                                                                    </span>
-                                                                  ) : null})
+                                                                  {comp.stockDate &&
+                                                                  cockpit.selectedWeek.startDate &&
+                                                                  cockpit.selectedWeek.endDate &&
+                                                                  comp.stockDate >= cockpit.selectedWeek.startDate &&
+                                                                  comp.stockDate <= cockpit.selectedWeek.endDate ? (
+                                                                    <>
+                                                                      MB52 ({comp.totalPhysicalStock.toLocaleString()}
+                                                                      {comp.inQualityInsp && comp.inQualityInsp > 0 ? (
+                                                                        <span className="text-[10px] text-teal-700 font-sans font-normal ml-0.5" title="Unrestricted Stock + In-Quality Inspection">
+                                                                          [{comp.unrestrictedStock?.toLocaleString() || (comp.totalPhysicalStock - comp.inQualityInsp).toLocaleString()} + {comp.inQualityInsp.toLocaleString()} QI]
+                                                                        </span>
+                                                                      ) : null})
+                                                                    </>
+                                                                  ) : (
+                                                                    <>Opening Stock ({comp.totalPhysicalStock.toLocaleString()})</>
+                                                                  )}
                                                                 </span> -{' '}
                                                                 <span className="text-slate-700">Reserved ({comp.reservedStock.toLocaleString()})</span> +{' '}
                                                                 <span className="text-emerald-700 font-semibold">Deliveries (+{comp.totalScheduledInward.toLocaleString()})</span> -{' '}
                                                                 <span className="text-slate-800">Gross Req ({comp.totalRequiredForWeekWithBacklog.toLocaleString()})</span> ={' '}
-                                                                <strong className={comp.stockDeficit < 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
-                                                                  {comp.stockDeficit > 0 ? `+${comp.stockDeficit.toLocaleString()}` : comp.stockDeficit.toLocaleString()} {comp.uom}
+                                                                <strong className={comp.projectedDeficitWithDeliveries < 0 ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
+                                                                  {comp.projectedDeficitWithDeliveries > 0 ? `+${comp.projectedDeficitWithDeliveries.toLocaleString()}` : comp.projectedDeficitWithDeliveries.toLocaleString()} {comp.uom}
                                                                 </strong>
                                                               </div>
                                                               <div className="text-slate-600 font-sans text-[11px]">

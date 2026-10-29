@@ -32,13 +32,15 @@ interface StockReportManagerProps {
   onUpdateStock: (items: StockReportItem[]) => void;
   openingStockDate?: string;
   onUpdateOpeningStockDate?: (date: string) => void;
+  globalSearchTerm: string;
 }
 
 export const StockReportManager: React.FC<StockReportManagerProps> = ({
   stockList,
   onUpdateStock,
   openingStockDate = new Date().toISOString().slice(0, 10),
-  onUpdateOpeningStockDate
+  onUpdateOpeningStockDate,
+  globalSearchTerm
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'FG' | 'RM' | 'PM'>('ALL');
@@ -81,16 +83,24 @@ export const StockReportManager: React.FC<StockReportManagerProps> = ({
 
   const filteredStocks = stockList.filter((item) => {
     const term = searchTerm.trim().toLowerCase();
-    const matchesSearch =
+    const globalTerm = globalSearchTerm.trim().toLowerCase();
+    const matchesInternal =
       !term ||
       item.partNumber.toLowerCase().includes(term) ||
       item.materialDescription.toLowerCase().includes(term) ||
       item.storageLocation.toLowerCase().includes(term) ||
       (item.stockDate && item.stockDate.toLowerCase().includes(term));
 
+    const matchesGlobal =
+      !globalTerm ||
+      item.partNumber.toLowerCase().includes(globalTerm) ||
+      item.materialDescription.toLowerCase().includes(globalTerm) ||
+      item.storageLocation.toLowerCase().includes(globalTerm) ||
+      (item.stockDate && item.stockDate.toLowerCase().includes(globalTerm));
+
     const matchesType = typeFilter === 'ALL' || item.materialType === typeFilter;
 
-    return matchesSearch && matchesType;
+    return matchesInternal && matchesGlobal && matchesType;
   });
 
   const isItemReadOnly = (item: StockReportItem) => {
@@ -374,27 +384,18 @@ export const StockReportManager: React.FC<StockReportManagerProps> = ({
     // Set opening stock baseline date across app
     onUpdateOpeningStockDate?.(dateToApply);
 
-    // Rule: Whenever updating MB52 with date of upload:
-    // 1. All previous uploads become zero
-    // 2. From date of upload, all prior data becomes read-only for that line item for which upload was made
-    const previousZeroed: StockReportItem[] = stockList
-      .filter((prev) => {
-        // Avoid duplicate entry if same item and date is present in newly parsed upload
-        return !parsed.some(
-          (p) => p.partNumber === prev.partNumber && p.stockDate === (prev.uploadDate || prev.stockDate)
-        );
-      })
-      .map((prev) => ({
-        ...prev,
-        id: prev.isPreviousUpload ? prev.id : `prev-zeroed-${prev.id}`,
-        unrestrictedStock: 0,
-        inQualityInsp: 0,
-        blocked: 0,
-        isReadOnly: true,
-        isPreviousUpload: true
-      }));
+    // Keep records from other dates intact so earlier weeks retain their baseline while
+    // the newly uploaded date acts as the new reference from dateToApply onward.
+    const remainingRecords: StockReportItem[] = stockList.filter((prev) => {
+      return !parsed.some(
+        (p) =>
+          p.partNumber === prev.partNumber &&
+          p.stockDate === (prev.stockDate || prev.uploadDate) &&
+          p.storageLocation === prev.storageLocation
+      );
+    });
 
-    onUpdateStock([...parsed, ...previousZeroed]);
+    onUpdateStock([...parsed, ...remainingRecords]);
 
     setSelectedIds(new Set());
     setIsUploadModalOpen(false);

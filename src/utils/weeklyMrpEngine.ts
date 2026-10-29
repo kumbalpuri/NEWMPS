@@ -223,6 +223,10 @@ export function computeRMWeeklyRequirements(
     const vendorCode = vbMapping ? vbMapping.vendorCode : 'V-NONE';
     const leadTimeDays = vbMapping ? vbMapping.leadTimeDays : 7;
 
+    let rollingStock = 0;
+    let hasRollingBaseline = false;
+    let lastAppliedSnapshotDate = '';
+
     const weekSummaries = monthWeeks.map((week) => {
       // Lookup Stock Report (Snapshot for this component at this week)
       const stockSnapshot = getEffectiveStockSnapshot(
@@ -231,12 +235,25 @@ export function computeRMWeeklyRequirements(
         week,
         effectiveOpeningDate
       );
-      const currentStock = stockSnapshot.totalPhysicalStock;
+      const snapshotStock = stockSnapshot.totalPhysicalStock;
       const safetyStock = stockSnapshot.safetyStock;
       const itemBaselineDate = stockSnapshot.effectiveDate;
 
-      // Reset rolling stock for this week based on the snapshot
-      let rollingStock = currentStock;
+      const isNewSnapshotInThisWeek =
+        itemBaselineDate &&
+        itemBaselineDate !== lastAppliedSnapshotDate &&
+        week.startDate &&
+        week.endDate &&
+        itemBaselineDate >= week.startDate &&
+        itemBaselineDate <= week.endDate;
+
+      if (!hasRollingBaseline || isNewSnapshotInThisWeek) {
+        rollingStock = snapshotStock;
+        hasRollingBaseline = true;
+        lastAppliedSnapshotDate = itemBaselineDate || '';
+      }
+
+      const currentStock = Math.round(rollingStock);
 
       // Calculate Gross Requirement across all active FG plans in this month
       let grossReqForWeek = 0;
