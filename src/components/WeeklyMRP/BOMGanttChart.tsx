@@ -188,48 +188,48 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
           {/* Calendar Header */}
           <thead>
             {/* Top Tier: Month / Week + Critical Path Toggle */}
-            <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
-              <th className="py-1 px-2.5 w-64 border-r border-slate-200">
+            <tr className="bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+              <th className="py-2.5 px-3 w-72 border-r border-slate-200">
                 <div className="flex items-center justify-between">
                   <span>Component / Resource</span>
-                  <span className="text-[9px] font-normal text-slate-500">Coverage</span>
+                  <span className="text-[11px] font-semibold text-slate-500">Coverage</span>
                 </div>
               </th>
-              <th colSpan={days.length} className="py-1 px-2 bg-slate-100/90">
+              <th colSpan={days.length} className="py-2.5 px-3 bg-slate-100/90">
                 <div className="flex items-center justify-between px-1 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <span>{week.month || 'AUG 2026'} — WEEK {week.weekNo}</span>
+                    <span className="text-xs sm:text-sm font-bold">{week.month || 'AUG 2026'} — WEEK {week.weekNo}</span>
                     {highlightCriticalPath && isCriticalPathComp && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-black tracking-wide shadow-2xs animate-pulse">
-                        <Zap className="w-2.5 h-2.5 fill-current" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-600 text-white text-[11px] font-black tracking-wide shadow-2xs animate-pulse">
+                        <Zap className="w-3 h-3 fill-current" />
                         <span>CRITICAL PATH</span>
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 font-normal normal-case text-[10px]">
+                  <div className="flex items-center gap-3 font-normal normal-case text-xs">
                     {/* Critical Path Visual Toggle */}
                     <button
                       type="button"
                       onClick={() => setHighlightCriticalPath(!highlightCriticalPath)}
-                      className={`px-2 py-0.5 rounded font-bold cursor-pointer inline-flex items-center gap-1 text-[10px] transition-all ${
+                      className={`px-2.5 py-1 rounded font-bold cursor-pointer inline-flex items-center gap-1.5 text-xs transition-all ${
                         highlightCriticalPath
                           ? 'bg-rose-600 text-white shadow-2xs ring-1 ring-rose-400'
                           : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-200'
                       }`}
                       title="Toggle highlighting of Critical Path dependencies that impact final FG delivery date"
                     >
-                      <Zap className={`w-3 h-3 ${highlightCriticalPath ? 'fill-current text-amber-300' : 'text-slate-500'}`} />
+                      <Zap className={`w-3.5 h-3.5 ${highlightCriticalPath ? 'fill-current text-amber-300' : 'text-slate-500'}`} />
                       <span>{highlightCriticalPath ? 'Critical Path Highlight: ON' : 'Highlight Critical Path'}</span>
                     </button>
 
-                    <div className="hidden sm:flex items-center gap-2.5">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600 inline-block" />
+                    <div className="hidden sm:flex items-center gap-3">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-sm bg-emerald-600 inline-block" />
                         <span className="text-emerald-900 font-semibold">Green (OK)</span>
                       </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-rose-600 inline-block" />
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-sm bg-rose-600 inline-block" />
                         <span className="text-rose-900 font-semibold">Red (Stockout)</span>
                       </span>
                     </div>
@@ -239,13 +239,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
             </tr>
 
             {/* Bottom Tier: Dates */}
-            <tr className="bg-slate-50 text-slate-600 text-[10px] border-b border-slate-200 font-medium">
-              <th className="py-1 px-2.5 border-r border-slate-200 font-mono text-[10px]">
+            <tr className="bg-slate-50 text-slate-700 text-xs border-b border-slate-200 font-semibold">
+              <th className="py-2 px-3 border-r border-slate-200 font-mono text-xs">
                 <div className="flex items-center justify-between">
-                  <span>{component.componentCode}</span>
+                  <span className="font-bold">{component.componentCode}</span>
                   {criticalPath && (
                     <span
-                      className={`text-[9px] font-bold px-1 rounded ${
+                      className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                         criticalPath.slackDays < 0
                           ? 'bg-rose-100 text-rose-800'
                           : criticalPath.slackDays <= 1
@@ -267,7 +267,7 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                   <th
                     key={day.date}
                     onClick={() => handleDateClick(day.date)}
-                    className={`py-1 px-1 text-center border-r border-slate-200 cursor-pointer transition-colors hover:bg-indigo-50 min-w-[60px] ${
+                    className={`py-1.5 px-1 text-center border-r border-slate-200 cursor-pointer transition-colors hover:bg-indigo-50 min-w-[76px] sm:min-w-[84px] ${
                       isSelected
                         ? 'bg-indigo-100 text-indigo-900 font-bold'
                         : isDayOnCriticalPath
@@ -276,15 +276,15 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                     }`}
                     title={`Click to inspect ${day.dayLabel} timeline track`}
                   >
-                    <div className="flex items-center justify-center gap-0.5">
+                    <div className="flex items-center justify-center gap-1">
                       {isDayOnCriticalPath && (
-                        <Zap className="w-2 h-2 text-rose-600 fill-current shrink-0" />
+                        <Zap className="w-2.5 h-2.5 text-rose-600 fill-current shrink-0" />
                       )}
-                      <span className="font-bold text-slate-800 text-[10px] leading-tight">
+                      <span className="font-bold text-slate-800 text-xs leading-tight">
                         {day.date.split('-')[2] || day.dayLabel.split(' ')[0]}
                       </span>
                     </div>
-                    <div className="text-[9px] text-slate-500 font-normal uppercase leading-tight">
+                    <div className="text-[11px] text-slate-500 font-medium uppercase leading-tight mt-0.5">
                       {day.dayOfWeek}
                     </div>
                   </th>
@@ -296,34 +296,34 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
           {/* Compact Gantt Data Row */}
           <tbody>
             <tr
-              className={`border-b border-slate-200 transition-colors h-9 ${
+              className={`border-b border-slate-200 transition-colors h-11 ${
                 highlightCriticalPath && isCriticalPathComp
                   ? 'bg-rose-50/30 hover:bg-rose-50/60'
                   : 'hover:bg-slate-50/60'
               }`}
             >
               {/* Left Column: Component Details & Coverage Pill */}
-              <td className="py-1 px-2.5 border-r border-slate-200 align-middle">
-                <div className="flex items-center justify-between gap-1.5">
+              <td className="py-2 px-3 border-r border-slate-200 align-middle">
+                <div className="flex items-center justify-between gap-2">
                   <div className="truncate pr-1">
                     <div className="flex items-center gap-1.5">
                       {highlightCriticalPath && isCriticalPathComp && (
-                        <span className="px-1 py-0.2 rounded bg-rose-600 text-white text-[8px] font-black uppercase tracking-tight shrink-0">
+                        <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-black uppercase tracking-tight shrink-0">
                           CRITICAL
                         </span>
                       )}
-                      <span className="font-semibold text-slate-900 text-[11px] truncate" title={component.componentDescription}>
+                      <span className="font-semibold text-slate-900 text-xs sm:text-sm truncate" title={component.componentDescription}>
                         {component.componentDescription}
                       </span>
                     </div>
-                    <div className="text-[9px] text-slate-500 truncate">
+                    <div className="text-xs text-slate-500 truncate mt-0.5">
                       {component.vendorName} • {component.bomQty} {component.uom}/FG
                     </div>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-1">
+                  <div className="shrink-0 flex items-center gap-1.5">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
+                      className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${
                         coveragePercent >= 100
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           : coveragePercent >= 60
@@ -337,14 +337,14 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowTimelineTrack(!showTimelineTrack)}
-                      className={`p-1 rounded cursor-pointer transition-colors ${
+                      className={`p-1.5 rounded cursor-pointer transition-colors ${
                         showTimelineTrack
                           ? 'bg-indigo-600 text-white'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                       }`}
                       title={showTimelineTrack ? 'Hide detailed timeline track' : 'Click to show timeline track'}
                     >
-                      <ChevronDown className={`w-3 h-3 transition-transform ${showTimelineTrack ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showTimelineTrack ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -362,22 +362,22 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                   <td
                     key={day.date}
                     onClick={() => handleDateClick(day.date)}
-                    className={`py-0.5 px-0.5 border-r border-slate-200 text-center align-middle cursor-pointer relative ${
+                    className={`py-1 px-1 border-r border-slate-200 text-center align-middle cursor-pointer relative ${
                       isSelected ? 'bg-indigo-50/60' : ''
                     }`}
                   >
                     {/* Compact Horizontal Bar Pill (Green, Red, or Frozen) */}
                     <div
-                      className={`w-full h-7 rounded-xs flex items-center justify-center px-1 text-[10px] font-bold transition-all shadow-2xs relative ${
+                      className={`w-full h-8.5 sm:h-9 rounded flex items-center justify-center px-1.5 text-xs font-bold transition-all shadow-xs relative ${
                         day.isFrozen
-                          ? 'bg-slate-700/80 hover:bg-slate-700 text-slate-300 border border-slate-600'
+                          ? 'bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-slate-600'
                           : isCritical
                           ? 'bg-rose-600 hover:bg-rose-700 text-white'
                           : isWarning
                           ? 'bg-amber-500 hover:bg-amber-600 text-white'
                           : day.isWorkingDay
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          : 'bg-slate-300 text-slate-600'
+                          : 'bg-slate-300 text-slate-700'
                       } ${
                         isSelected
                           ? 'ring-2 ring-indigo-500 ring-offset-1 z-10'
@@ -398,29 +398,29 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                       } (Click to open timeline track)`}
                     >
                       {day.isFrozen ? (
-                        <div className="flex items-center gap-0.5 text-[8px] text-slate-300">
-                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                        <div className="flex items-center gap-1 text-[11px] text-slate-200">
+                          <Lock className="w-3 h-3 text-slate-300" />
                           <span>FROZEN</span>
                         </div>
                       ) : hasInward ? (
-                        <div className="flex items-center gap-0.5 truncate text-[9px]">
+                        <div className="flex items-center gap-1 truncate text-xs font-mono">
                           {isCriticalDelivery && (
-                            <Zap className="w-2.5 h-2.5 text-amber-300 fill-current shrink-0" />
+                            <Zap className="w-3 h-3 text-amber-300 fill-current shrink-0" />
                           )}
-                          <Truck className="w-2.5 h-2.5 shrink-0" />
-                          <span className="font-mono">+{day.totalInwardToday.toLocaleString()}</span>
+                          <Truck className="w-3 h-3 shrink-0" />
+                          <span>+{day.totalInwardToday.toLocaleString()}</span>
                         </div>
                       ) : isCritical ? (
-                        <div className="flex items-center gap-0.5">
-                          {highlightCriticalPath && <Zap className="w-2 h-2 fill-current shrink-0" />}
-                          <span className="text-[9px] uppercase font-black tracking-tight">STOP</span>
+                        <div className="flex items-center gap-1">
+                          {highlightCriticalPath && <Zap className="w-2.5 h-2.5 fill-current shrink-0" />}
+                          <span className="text-xs uppercase font-black tracking-wide">STOP</span>
                         </div>
                       ) : day.isWorkingDay ? (
-                        <span className="text-[9px] font-semibold opacity-95">
+                        <span className="text-xs font-semibold opacity-95">
                           {day.isEffectiveStockDate ? 'OK ★' : 'OK'}
                         </span>
                       ) : (
-                        <span className="text-[8px] opacity-75">OFF</span>
+                        <span className="text-[11px] opacity-75 font-semibold">OFF</span>
                       )}
                     </div>
                   </td>
@@ -564,16 +564,16 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
       {/* 5. EXPANDABLE DETAILED TIMELINE TRACK */}
       {showTimelineTrack && (
-        <div className="p-3 bg-slate-900 text-white border-t border-slate-700 space-y-2.5">
+        <div className="p-4 bg-slate-900 text-white border-t border-slate-700 space-y-3.5">
           {/* Header of Timeline Track */}
-          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 text-xs">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="font-bold text-slate-100">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-sm">
+            <div className="flex items-center gap-2.5">
+              <BarChart3 className="w-4 h-4 text-indigo-400" />
+              <span className="font-bold text-slate-100 text-sm sm:text-base">
                 Timeline Track Analysis: {component.componentCode} ({component.componentDescription})
               </span>
               {isCriticalPathComp && (
-                <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-bold">
+                <span className="px-2 py-0.5 rounded bg-rose-600 text-white text-[11px] font-bold">
                   ⚡ Critical Path Task
                 </span>
               )}
@@ -581,29 +581,29 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
             <button
               type="button"
               onClick={() => setShowTimelineTrack(false)}
-              className="text-slate-400 hover:text-white cursor-pointer p-0.5"
+              className="text-slate-400 hover:text-white cursor-pointer p-1 rounded hover:bg-slate-800 transition-colors"
               title="Close timeline track"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Selected Date Metric Cards */}
           {selectedDaySimulation && (
-            <div className="space-y-1.5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
-                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                  <div className="flex items-center justify-between text-slate-400 text-[9px]">
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                  <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
                     <span>1. Opening Inventory:</span>
                     {selectedDaySimulation.isEffectiveStockDate ? (
-                      <span className="px-1 py-0.2 rounded bg-teal-900 text-teal-300 text-[8px] font-bold">MB52 Baseline</span>
+                      <span className="px-1.5 py-0.5 rounded bg-teal-900 text-teal-300 text-[10px] font-bold">MB52 Baseline</span>
                     ) : !selectedDaySimulation.isFrozen ? (
-                      <span className="px-1 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[8px] font-bold">Carried Forward</span>
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 text-[10px] font-bold">Carried Forward</span>
                     ) : null}
                   </div>
-                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <div className="flex items-baseline gap-2 flex-wrap">
                     <span
-                      className={`text-xs font-bold ${
+                      className={`text-sm sm:text-base font-bold ${
                         selectedDaySimulation.isFrozen
                           ? 'text-slate-400'
                           : selectedDaySimulation.openingStock < 0
@@ -619,32 +619,32 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                       selectedDaySimulation.isEffectiveStockDate &&
                       component.inQualityInsp &&
                       component.inQualityInsp > 0 && (
-                        <span className="text-[9px] text-teal-400 font-sans font-normal" title="Unrestricted Stock + In-Quality Inspection">
+                        <span className="text-xs text-teal-400 font-sans font-normal" title="Unrestricted Stock + In-Quality Inspection">
                           ({component.unrestrictedStock?.toLocaleString() || (component.totalPhysicalStock - component.inQualityInsp).toLocaleString()} + {component.inQualityInsp.toLocaleString()} QI)
                         </span>
                       )}
                   </div>
                 </div>
-                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                  <span className="text-slate-400 block text-[9px]">2. Vendor Deliveries:</span>
-                  <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-emerald-400'}`}>
+                <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                  <span className="text-slate-400 block text-xs font-semibold mb-1">2. Vendor Deliveries:</span>
+                  <span className={`text-sm sm:text-base font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-emerald-400'}`}>
                     {selectedDaySimulation.isFrozen
                       ? 'Frozen'
                       : `+${selectedDaySimulation.totalInwardToday.toLocaleString()} ${component.uom}`}
                   </span>
                 </div>
-                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                  <span className="text-slate-400 block text-[9px]">3. Production Consumption:</span>
-                  <span className={`text-xs font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-rose-300'}`}>
+                <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                  <span className="text-slate-400 block text-xs font-semibold mb-1">3. Production Consumption:</span>
+                  <span className={`text-sm sm:text-base font-bold ${selectedDaySimulation.isFrozen ? 'text-slate-400' : 'text-rose-300'}`}>
                     {selectedDaySimulation.isFrozen
                       ? 'Frozen'
                       : `-${selectedDaySimulation.dailyReq.toLocaleString()} ${component.uom}`}
                   </span>
                 </div>
-                <div className="bg-slate-800 p-1.5 rounded border border-slate-700">
-                  <span className="text-slate-400 block text-[9px]">4. Projected Ending Balance:</span>
+                <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                  <span className="text-slate-400 block text-xs font-semibold mb-1">4. Projected Ending Balance:</span>
                   <span
-                    className={`text-xs font-bold ${
+                    className={`text-sm sm:text-base font-bold ${
                       selectedDaySimulation.isFrozen
                         ? 'text-slate-400'
                         : selectedDaySimulation.endingStock < 0
@@ -659,8 +659,8 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                 </div>
               </div>
               {effectiveStockDate && days.some((d) => d.isFrozen) && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800/90 rounded text-[10px] text-teal-300 border border-teal-800/50">
-                  <Lock className="w-2.5 h-2.5 text-teal-400 shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/90 rounded-lg text-xs text-teal-300 border border-teal-800/50">
+                  <Lock className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                   <span>
                     New opening stock ({days.find((d) => d.isEffectiveStockDate)?.openingStock.toLocaleString() || '3,000'} {component.uom}) is effective from <strong>{days.find((d) => d.isEffectiveStockDate)?.dayLabel || effectiveStockDate}</strong>. All previous calculations are frozen.
                   </span>
@@ -670,13 +670,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
           )}
 
           {/* Full Week Timeline Table */}
-          <div className="overflow-x-auto rounded border border-slate-700">
-            <table className="w-full text-[10px] font-mono border-collapse min-w-[580px]">
+          <div className="overflow-x-auto rounded-lg border border-slate-700">
+            <table className="w-full text-xs font-mono border-collapse min-w-[640px]">
               <thead>
-                <tr className="bg-slate-800 text-slate-300 text-center">
-                  <th className="py-1 px-2 text-left w-36 font-sans">Track Metric</th>
+                <tr className="bg-slate-800 text-slate-200 text-center text-xs font-semibold">
+                  <th className="py-2.5 px-3 text-left w-44 font-sans">Track Metric</th>
                   {days.map((d) => (
-                    <th key={d.date} className="py-1 px-1 border-l border-slate-700">
+                    <th key={d.date} className="py-2.5 px-2 border-l border-slate-700">
                       <div>{d.dayLabel}</div>
                     </th>
                   ))}
@@ -685,13 +685,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
               <tbody className="divide-y divide-slate-800 text-center">
                 {/* Line Status */}
                 <tr>
-                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
+                  <td className="py-2.5 px-3 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
                     Line Status
                   </td>
                   {days.map((d) => (
-                    <td key={d.date} className="py-1 px-1 border-l border-slate-800">
+                    <td key={d.date} className="py-2 px-2 border-l border-slate-800">
                       <span
-                        className={`px-1 py-0.5 rounded text-[9px] font-bold ${
+                        className={`inline-block px-2 py-1 rounded text-xs font-bold ${
                           d.isFrozen
                             ? 'bg-slate-700 text-slate-300 border border-slate-600'
                             : d.status === 'CRITICAL_STOPPAGE'
@@ -709,13 +709,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
                 {/* 1. Opening Stock (NEW ROW ABOVE VENDOR ARRIVALS) */}
                 <tr>
-                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
+                  <td className="py-2.5 px-3 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
                     Opening Stock
                   </td>
                   {days.map((d) => (
                     <td
                       key={d.date}
-                      className={`py-1 px-1 border-l border-slate-800 font-bold ${
+                      className={`py-2 px-2 border-l border-slate-800 font-bold text-xs ${
                         d.isFrozen
                           ? 'text-slate-500'
                           : d.isEffectiveStockDate
@@ -724,15 +724,15 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                       }`}
                     >
                       {d.isFrozen ? (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-500">
-                          <Lock className="w-2.5 h-2.5" />
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                          <Lock className="w-3 h-3" />
                           <span>Frozen</span>
                         </span>
                       ) : (
                         <span>
                           {d.openingStock.toLocaleString()}
                           {d.isEffectiveStockDate && (
-                            <span className="ml-0.5 text-[8px] text-teal-400 font-normal" title={`MB52 Opening Stock baseline takes effect on ${d.dayLabel}`}>★</span>
+                            <span className="ml-1 text-[10px] text-teal-400 font-normal" title={`MB52 Opening Stock baseline takes effect on ${d.dayLabel}`}>★</span>
                           )}
                         </span>
                       )}
@@ -742,13 +742,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
                 {/* 2. Inward Arrival */}
                 <tr>
-                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60">
+                  <td className="py-2.5 px-3 text-left font-sans text-slate-300 bg-slate-800/60">
                     Vendor Arrivals
                   </td>
                   {days.map((d) => (
-                    <td key={d.date} className="py-1 px-1 border-l border-slate-800 text-emerald-400 font-bold">
+                    <td key={d.date} className="py-2 px-2 border-l border-slate-800 text-emerald-400 font-bold text-xs">
                       {d.isFrozen ? (
-                        <span className="text-slate-500 text-[9px]">Frozen</span>
+                        <span className="text-slate-500 text-xs">Frozen</span>
                       ) : d.totalInwardToday > 0 ? (
                         `+${d.totalInwardToday.toLocaleString()}`
                       ) : (
@@ -760,13 +760,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
                 {/* 3. Consumption */}
                 <tr>
-                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60">
+                  <td className="py-2.5 px-3 text-left font-sans text-slate-300 bg-slate-800/60">
                     Daily Burn Req
                   </td>
                   {days.map((d) => (
-                    <td key={d.date} className="py-1 px-1 border-l border-slate-800 text-rose-300">
+                    <td key={d.date} className="py-2 px-2 border-l border-slate-800 text-rose-300 text-xs">
                       {d.isFrozen ? (
-                        <span className="text-slate-500 text-[9px]">Frozen</span>
+                        <span className="text-slate-500 text-xs">Frozen</span>
                       ) : d.dailyReq > 0 ? (
                         `-${d.dailyReq.toLocaleString()}`
                       ) : (
@@ -778,13 +778,13 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
 
                 {/* 4. Ending Balance */}
                 <tr>
-                  <td className="py-1 px-2 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
+                  <td className="py-2.5 px-3 text-left font-sans text-slate-300 bg-slate-800/60 font-semibold">
                     Projected Stock
                   </td>
                   {days.map((d) => (
                     <td
                       key={d.date}
-                      className={`py-1 px-1 border-l border-slate-800 font-bold ${
+                      className={`py-2 px-2 border-l border-slate-800 font-bold text-xs ${
                         d.isFrozen
                           ? 'text-slate-500'
                           : d.endingStock < 0
@@ -793,8 +793,8 @@ export const BOMGanttChart: React.FC<BOMGanttChartProps> = ({
                       }`}
                     >
                       {d.isFrozen ? (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-500">
-                          <Lock className="w-2.5 h-2.5" />
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                          <Lock className="w-3 h-3" />
                           <span>Frozen</span>
                         </span>
                       ) : (
@@ -979,44 +979,44 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
         <table className="w-full border-collapse text-left min-w-[680px]">
           <thead>
             {/* Header Tier 1: Weeks */}
-            <tr className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
-              <th className="py-1 px-2.5 w-68 border-r border-slate-200">
+            <tr className="bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+              <th className="py-2.5 px-3 w-72 border-r border-slate-200">
                 <div className="flex items-center justify-between">
                   <span>BOM Component</span>
-                  <span className="text-[9px] font-normal text-slate-500">Slack / Cov</span>
+                  <span className="text-[11px] font-semibold text-slate-500">Slack / Cov</span>
                 </div>
               </th>
-              <th colSpan={daysHeader.length} className="py-1 px-2 bg-slate-100/90">
+              <th colSpan={daysHeader.length} className="py-2.5 px-3 bg-slate-100/90">
                 <div className="flex items-center justify-between px-2 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <span>{week.month || 'AUG 2026'} — WEEK {week.weekNo} ({week.startDate} to {week.endDate})</span>
+                    <span className="text-xs sm:text-sm font-bold">{week.month || 'AUG 2026'} — WEEK {week.weekNo} ({week.startDate} to {week.endDate})</span>
                   </div>
 
-                  <div className="flex items-center gap-3 font-normal normal-case text-[10px]">
+                  <div className="flex items-center gap-3 font-normal normal-case text-xs">
                     {!highlightCriticalPath && (
                       <button
                         type="button"
                         onClick={() => setHighlightCriticalPath(true)}
-                        className="px-2 py-0.5 rounded font-bold cursor-pointer inline-flex items-center gap-1 text-[10px] bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100"
+                        className="px-2.5 py-1 rounded font-bold cursor-pointer inline-flex items-center gap-1.5 text-xs bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100"
                         title="Highlight dependencies directly impacting final delivery date"
                       >
-                        <Zap className="w-3 h-3 text-rose-600 fill-current" />
+                        <Zap className="w-3.5 h-3.5 text-rose-600 fill-current" />
                         <span>Highlight Critical Path</span>
                       </button>
                     )}
 
-                    <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600 inline-block" />
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-sm bg-emerald-600 inline-block" />
                         <span className="text-emerald-900 font-semibold">Green (OK)</span>
                       </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-rose-600 inline-block" />
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-sm bg-rose-600 inline-block" />
                         <span className="text-rose-900 font-semibold">Red (Deficit)</span>
                       </span>
                       {highlightCriticalPath && (
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-400 border border-amber-600 inline-block" />
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-sm bg-amber-400 border border-amber-600 inline-block" />
                           <span className="text-amber-900 font-bold">⚡ Critical Arrival</span>
                         </span>
                       )}
@@ -1027,19 +1027,19 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
             </tr>
 
             {/* Header Tier 2: Dates */}
-            <tr className="bg-slate-50 text-slate-600 text-[10px] border-b border-slate-200 font-medium">
-              <th className="py-1 px-2.5 border-r border-slate-200 font-mono text-[10px]">
+            <tr className="bg-slate-50 text-slate-700 text-xs border-b border-slate-200 font-semibold">
+              <th className="py-2 px-3 border-r border-slate-200 font-mono text-xs">
                 {fgCode} ({displayList.length} Materials)
               </th>
               {daysHeader.map((day) => (
                 <th
                   key={day.date}
-                  className="py-1 px-1 text-center border-r border-slate-200 min-w-[58px]"
+                  className="py-1.5 px-1 text-center border-r border-slate-200 min-w-[76px] sm:min-w-[84px]"
                 >
-                  <div className="font-bold text-slate-800 text-[10px] leading-tight">
+                  <div className="font-bold text-slate-800 text-xs leading-tight">
                     {day.date.split('-')[2] || day.dayLabel.split(' ')[0]}
                   </div>
-                  <div className="text-[9px] text-slate-500 font-normal uppercase leading-tight">
+                  <div className="text-[11px] text-slate-500 font-medium uppercase leading-tight mt-0.5">
                     {day.dayOfWeek}
                   </div>
                 </th>
@@ -1055,7 +1055,7 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                 <React.Fragment key={comp.id}>
                   <tr
                     onClick={() => setSelectedCompId(isSelected ? null : comp.id)}
-                    className={`cursor-pointer transition-colors h-8.5 ${
+                    className={`cursor-pointer transition-colors h-11 ${
                       isSelected
                         ? 'bg-indigo-50/60'
                         : highlightCriticalPath && isCriticalPath
@@ -1066,28 +1066,28 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                     }`}
                   >
                     {/* Component Info */}
-                    <td className="py-1 px-2.5 border-r border-slate-200 align-middle">
-                      <div className="flex items-center justify-between gap-1.5">
+                    <td className="py-2 px-3 border-r border-slate-200 align-middle">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="truncate pr-1">
                           <div className="flex items-center gap-1.5">
                             {highlightCriticalPath && isCriticalPath && (
-                              <span className="px-1 py-0.2 rounded bg-rose-600 text-white text-[8px] font-black uppercase tracking-tight shrink-0">
+                              <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-black uppercase tracking-tight shrink-0">
                                 ⚡ CRITICAL
                               </span>
                             )}
-                            <span className="font-semibold text-slate-900 text-[11px] truncate" title={comp.componentDescription}>
+                            <span className="font-semibold text-slate-900 text-xs sm:text-sm truncate" title={comp.componentDescription}>
                               {comp.componentDescription}
                             </span>
                           </div>
-                          <div className="text-[9px] text-slate-500 truncate font-mono">
+                          <div className="text-xs text-slate-500 truncate font-mono mt-0.5">
                             {comp.componentCode} • {comp.bomQty} {comp.uom}/FG
                           </div>
                         </div>
 
-                        <div className="shrink-0 flex items-center gap-1">
+                        <div className="shrink-0 flex items-center gap-1.5">
                           {/* Slack Pill */}
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono ${
+                            className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${
                               slackDays < 0
                                 ? 'bg-rose-600 text-white'
                                 : slackDays <= 1
@@ -1100,7 +1100,7 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                           </span>
 
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
+                            className={`px-2 py-0.5 rounded text-xs font-bold font-mono ${
                               coveragePercent >= 100
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                 : coveragePercent >= 60
@@ -1110,7 +1110,7 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                           >
                             {coveragePercent}%
                           </span>
-                          <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isSelected ? 'rotate-180 text-indigo-600' : ''}`} />
+                          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isSelected ? 'rotate-180 text-indigo-600' : ''}`} />
                         </div>
                       </div>
                     </td>
@@ -1125,22 +1125,22 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                       return (
                         <td
                           key={day.date}
-                          className="py-0.5 px-0.5 border-r border-slate-200 text-center align-middle"
+                          className="py-1 px-1 border-r border-slate-200 text-center align-middle"
                         >
                           <div
-                            className={`w-full h-6.5 rounded-xs flex items-center justify-center px-1 text-[9px] font-bold transition-all shadow-2xs relative ${
+                            className={`w-full h-8.5 sm:h-9 rounded flex items-center justify-center px-1.5 text-xs font-bold transition-all shadow-xs relative ${
                               isCritical
                                 ? 'bg-rose-600 hover:bg-rose-700 text-white'
                                 : isWarning
                                 ? 'bg-amber-500 hover:bg-amber-600 text-white'
                                 : day.isWorkingDay
                                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                : 'bg-slate-300 text-slate-600'
+                                : 'bg-slate-300 text-slate-700'
                             } ${
                               highlightCriticalPath && isCritical
-                                ? 'ring-1.5 ring-rose-500 ring-offset-0.5'
+                                ? 'ring-2 ring-rose-500 ring-offset-0.5'
                                 : highlightCriticalPath && isCriticalDelivery
-                                ? 'ring-1.5 ring-amber-400 ring-offset-0.5'
+                                ? 'ring-2 ring-amber-400 ring-offset-0.5'
                                 : ''
                             }`}
                             title={`${comp.componentCode} on ${day.dayLabel}: ${
@@ -1152,22 +1152,22 @@ export const MultiComponentMasterGantt: React.FC<MultiComponentMasterGanttProps>
                             }`}
                           >
                             {hasInward ? (
-                              <span className="flex items-center gap-0.5 truncate font-mono text-[8.5px]">
+                              <span className="flex items-center gap-1 truncate font-mono text-xs">
                                 {isCriticalDelivery && (
-                                  <Zap className="w-2 h-2 text-amber-300 fill-current shrink-0" />
+                                  <Zap className="w-2.5 h-2.5 text-amber-300 fill-current shrink-0" />
                                 )}
-                                <Truck className="w-2 h-2 shrink-0" />
+                                <Truck className="w-2.5 h-2.5 shrink-0" />
                                 <span>+{day.totalInwardToday}</span>
                               </span>
                             ) : isCritical ? (
-                              <div className="flex items-center gap-0.5">
-                                {highlightCriticalPath && <Zap className="w-2 h-2 fill-current shrink-0" />}
-                                <span className="uppercase text-[8px] font-black">STOP</span>
+                              <div className="flex items-center gap-1">
+                                {highlightCriticalPath && <Zap className="w-2.5 h-2.5 fill-current shrink-0" />}
+                                <span className="uppercase text-xs font-black tracking-wide">STOP</span>
                               </div>
                             ) : day.isWorkingDay ? (
-                              <span className="opacity-95 text-[8.5px]">OK</span>
+                              <span className="opacity-95 text-xs font-semibold">OK</span>
                             ) : (
-                              <span className="text-[7.5px] opacity-75">OFF</span>
+                              <span className="text-[11px] opacity-75 font-semibold">OFF</span>
                             )}
                           </div>
                         </td>

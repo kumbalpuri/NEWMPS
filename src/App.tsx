@@ -44,6 +44,7 @@ import { StockReportManager } from './components/MondayUpload/StockReportManager
 
 // Weekly MRP & Supply Views
 import { MondayReviewCockpit } from './components/WeeklyMRP/MondayReviewCockpit';
+import { SupplyChainCriticalMaterialOnePager } from './components/Analytics/SupplyChainCriticalMaterialOnePager';
 import { ManagementProductionLossReport } from './components/Analytics/ManagementProductionLossReport';
 import { PerformanceDashboard } from './components/Analytics/PerformanceDashboard';
 import { VendorScheduleManager } from './components/WeeklyMRP/VendorScheduleManager';
@@ -236,6 +237,8 @@ export default function App() {
 
   const getActiveViewTitle = () => {
     switch (activeSubView) {
+      case 'supply_chain_one_pager':
+        return 'Critical Material Shortages Report (Current Week)';
       case 'monday_review_cockpit':
         return 'Monday Review & Seamless Production Cockpit';
       case 'management_loss_report':
@@ -269,8 +272,13 @@ export default function App() {
 
   const handleSelectRole = (role: UserRole) => {
     setCurrentRole(role);
-    if (role === 'management' && activeSubView !== 'management_loss_report' && activeSubView !== 'performance_dashboard') {
-      setActiveSubView('management_loss_report');
+    if (
+      role === 'management' &&
+      activeSubView !== 'management_loss_report' &&
+      activeSubView !== 'performance_dashboard' &&
+      activeSubView !== 'supply_chain_one_pager'
+    ) {
+      setActiveSubView('supply_chain_one_pager');
     }
   };
 
@@ -305,9 +313,9 @@ export default function App() {
           setGlobalSearchTerm={setGlobalSearchTerm}
         />
 
-        {/* Scrollable View Container - Full Width Dynamic Layout */}
-        <main className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-3.5 bg-slate-100">
-          <div className="w-full space-y-3 max-w-[100vw]">
+        {/* Scrollable View Container - Full Width Spacious Dynamic Layout */}
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-6 bg-slate-100/90">
+          <div className="w-full space-y-4 sm:space-y-5 max-w-[100vw]">
             {/* View 0: Monday Review Cockpit (Single Unified Screen) */}
             {activeSubView === 'monday_review_cockpit' && (
               <MondayReviewCockpit
@@ -332,6 +340,30 @@ export default function App() {
                 isSidebarCollapsed={isSidebarCollapsed}
                 onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 openingStockDate={openingStockDate}
+              />
+            )}
+
+            {/* View 0.1: Head of Supply Chain Critical Material Shortage One-Pager (Current Week) */}
+            {activeSubView === 'supply_chain_one_pager' && (
+              <SupplyChainCriticalMaterialOnePager
+                selectedMonth={selectedMonth}
+                setSelectedMonth={setSelectedMonth}
+                weeks={weeks}
+                monthlyPlans={monthlyPlans}
+                boms={boms}
+                vendorBuyers={vendorBuyers}
+                mb51List={mb51List}
+                stockList={stockList}
+                vendorDeliverySchedules={vendorDeliverySchedules}
+                onUpdateVendorDeliverySchedules={setVendorDeliverySchedules}
+                planFreezeList={planFreezeList}
+                openingStockDate={openingStockDate}
+                onNavigateToCockpit={(weekId, fgCode) => {
+                  setActiveSubView('monday_review_cockpit');
+                }}
+                onNavigateToVendorSchedule={(compCode) => {
+                  setActiveSubView('update_delivery_schedule');
+                }}
               />
             )}
 
